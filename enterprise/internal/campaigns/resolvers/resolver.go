@@ -425,29 +425,30 @@ func listChangesetOptsFromArgs(args *graphqlbackend.ListChangesetsArgs) (opts ee
 		opts.Limit = int(*args.First)
 	}
 
-	if args.State != nil {
-		state := *args.ExternalState
-		if !state.Valid() {
-			return opts, false, errors.New("changeset state not valid")
+	// TODO: also apply args.State to opts.
+	if args.ExternalState != nil {
+		externalState := *args.ExternalState
+		if !externalState.Valid() {
+			return opts, false, errors.New("changeset external state not valid")
 		}
-		opts.ExternalState = &state
+		opts.ExternalState = &externalState
 	}
 	if args.ReviewState != nil {
-		state := *args.ReviewState
-		if !state.Valid() {
+		reviewState := *args.ReviewState
+		if !reviewState.Valid() {
 			return opts, false, errors.New("changeset review state not valid")
 		}
-		opts.ExternalReviewState = &state
+		opts.ExternalReviewState = &reviewState
 		// If the user filters by ReviewState we cannot include hidden
 		// changesets, since that would leak information.
 		safe = false
 	}
 	if args.CheckState != nil {
-		state := *args.CheckState
-		if !state.Valid() {
+		checkState := *args.CheckState
+		if !checkState.Valid() {
 			return opts, false, errors.New("changeset check state not valid")
 		}
-		opts.ExternalCheckState = &state
+		opts.ExternalCheckState = &checkState
 		// If the user filters by CheckState we cannot include hidden
 		// changesets, since that would leak information.
 		safe = false
