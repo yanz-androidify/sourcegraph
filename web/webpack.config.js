@@ -182,7 +182,16 @@ const config = {
       },
       {
         test: extensionHostWorker,
-        use: [{ loader: 'worker-loader', options: { inline: true } }, babelLoader],
+        use: [
+          {
+            loader: 'worker-loader',
+            options: {
+              // Inline worker as Blob
+              inline: 'no-fallback',
+            },
+          },
+          babelLoader,
+        ],
       },
     ],
   },
