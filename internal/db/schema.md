@@ -339,6 +339,23 @@ Check constraints:
 
 ```
 
+# Table "public.external_service_sync_jobs"
+```
+       Column        |           Type           |                                Modifiers                                
+---------------------+--------------------------+-------------------------------------------------------------------------
+ id                  | integer                  | not null default nextval('external_service_sync_jobs_id_seq'::regclass)
+ state               | text                     | not null default 'queued'::text
+ failure_message     | text                     | 
+ started_at          | timestamp with time zone | 
+ finished_at         | timestamp with time zone | 
+ process_after       | timestamp with time zone | 
+ num_resets          | integer                  | not null default 0
+ external_service_id | bigint                   | 
+Foreign-key constraints:
+    "external_services_id_fk" FOREIGN KEY (external_service_id) REFERENCES external_services(id)
+
+```
+
 # Table "public.external_services"
 ```
       Column       |           Type           |                           Modifiers                            
@@ -359,6 +376,8 @@ Check constraints:
     "check_non_empty_config" CHECK (btrim(config) <> ''::text)
 Foreign-key constraints:
     "external_services_namepspace_user_id_fkey" FOREIGN KEY (namespace_user_id) REFERENCES users(id) ON DELETE CASCADE DEFERRABLE
+Referenced by:
+    TABLE "external_service_sync_jobs" CONSTRAINT "external_services_id_fk" FOREIGN KEY (external_service_id) REFERENCES external_services(id)
 
 ```
 
