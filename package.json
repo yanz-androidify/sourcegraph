@@ -254,7 +254,7 @@
     "web-ext": "^4.2.0",
     "webpack": "^4.44.1",
     "webpack-dev-server": "^3.11.0",
-    "worker-loader": "^2.0.0",
+    "worker-loader": "^3.0.1",
     "yarn-deduplicate": "^2.1.1"
   },
   "dependencies": {
