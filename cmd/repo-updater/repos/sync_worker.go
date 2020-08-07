@@ -6,34 +6,66 @@ import (
 	"errors"
 	"time"
 
+	"github.com/inconshreveable/log15"
 	"github.com/keegancsmith/sqlf"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/sourcegraph/sourcegraph/internal/db/basestore"
+	"github.com/sourcegraph/sourcegraph/internal/db/dbutil"
+	"github.com/sourcegraph/sourcegraph/internal/metrics"
+	"github.com/sourcegraph/sourcegraph/internal/observation"
+	"github.com/sourcegraph/sourcegraph/internal/trace"
 	"github.com/sourcegraph/sourcegraph/internal/workerutil"
 )
 
-func newSyncWorker(ctx context.Context, handle *basestore.TransactableHandle, numWorkers int) *workerutil.Worker {
-	store := workerutil.NewStore(handle, workerutil.StoreOptions{
+// NewSyncWorker creates a new external service sync worker.
+func NewSyncWorker(ctx context.Context, db dbutil.DB, handler workerutil.Handler, numHandlers int) *workerutil.Worker {
+	dbHandle := basestore.NewHandleWithDB(db)
+	store := workerutil.NewStore(dbHandle, workerutil.StoreOptions{
 		TableName:         "external_service_sync_jobs",
 		ViewName:          "external_service_sync_jobs_with_next_sync_at",
 		Scan:              scanSyncJob,
 		OrderByExpression: sqlf.Sprintf("next_sync_at"),
 		ColumnExpressions: syncJobColumns,
-		StalledMaxAge:     10 * time.Second,
+		StalledMaxAge:     30 * time.Second,
 		// Zero for now as we expect errors to be transient
 		MaxNumResets: 0,
 	})
 
 	return workerutil.NewWorker(ctx, store, workerutil.WorkerOptions{
 		Name:        "sync_worker",
-		Handler:     &syncHandler{},
-		NumHandlers: numWorkers,
+		Handler:     handler,
+		NumHandlers: numHandlers,
 		Interval:    1 * time.Minute,
+		Metrics: workerutil.WorkerMetrics{
+			HandleOperation: newObservationOperation(),
+		},
+	})
+}
+
+func newObservationOperation() *observation.Operation {
+	observationContext := &observation.Context{
+		Logger:     log15.Root(),
+		Tracer:     &trace.Tracer{Tracer: opentracing.GlobalTracer()},
+		Registerer: prometheus.DefaultRegisterer,
+	}
+
+	m := metrics.NewOperationMetrics(
+		observationContext.Registerer,
+		"repo_updater_external_service_syncer",
+		metrics.WithLabels("op"),
+		metrics.WithCountHelp("Total number of results returned"),
+	)
+
+	return observationContext.Operation(observation.Op{
+		Name:         "Syncer.Process",
+		MetricLabels: []string{"process"},
+		Metrics:      m,
 	})
 }
 
 var syncJobColumns = []*sqlf.Query{
-	sqlf.Sprintf("id"),
 	sqlf.Sprintf("id"),
 	sqlf.Sprintf("state"),
 	sqlf.Sprintf("failure_message"),
@@ -46,15 +78,42 @@ var syncJobColumns = []*sqlf.Query{
 }
 
 func scanSyncJob(rows *sql.Rows, err error) (workerutil.Record, bool, error) {
-	return nil, false, errors.New("TODO")
+	var job SyncJob
+
+	for rows.Next() {
+		if err := rows.Scan(
+			&job.ID,
+			&job.State,
+			&job.FailureMessage,
+			&job.StartedAt,
+			&job.FinishedAt,
+			&job.ProcessAfter,
+			&job.NumResets,
+			&job.ExternalServiceID,
+			&job.NextSyncAt,
+		); err != nil {
+			return nil, false, err
+		}
+	}
+
+	return &job, true, nil
 }
 
-type syncJob struct {
+// SyncJob represents an external service that needs to be synced
+type SyncJob struct {
 	ID                int
-	ExternalServiceID int
+	State             string
+	FailureMessage    sql.NullString
+	StartedAt         sql.NullTime
+	FinishedAt        sql.NullTime
+	ProcessAfter      sql.NullTime
+	NumResets         int
+	ExternalServiceID int64
+	NextSyncAt        sql.NullTime
 }
 
-func (s *syncJob) RecordID() int {
+// RecordID implements workerutil.Record and indicates the queued item id
+func (s *SyncJob) RecordID() int {
 	return s.ID
 }
 

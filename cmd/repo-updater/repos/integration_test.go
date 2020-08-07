@@ -58,6 +58,7 @@ func TestIntegration(t *testing.T) {
 		{"DBStore/CountNotClonedRepos", testStoreCountNotClonedRepos(store)},
 		{"DBStore/Syncer/Sync", testSyncerSync(store)},
 		{"DBStore/Syncer/SyncSubset", testSyncSubset(store)},
+		{"DBStore/Syncer/SyncWorker", testSyncWorkerPlumbing(db)},
 	} {
 		t.Run(tc.name, tc.test)
 	}
