@@ -3,12 +3,14 @@ package backend
 import (
 	"context"
 	"fmt"
+	"log"
 	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/google/zoekt"
 	zoektquery "github.com/google/zoekt/query"
+	"github.com/sourcegraph/sourcegraph/internal/trace"
 )
 
 // Zoekt wraps a zoekt.Searcher.
@@ -42,6 +44,7 @@ func (c *Zoekt) String() string {
 
 // ListAll returns the response of List without any restrictions.
 func (c *Zoekt) ListAll(ctx context.Context) (map[string]*zoekt.Repository, error) {
+	log.Printf("### Zoekt.ListAll")
 	if !c.Enabled() {
 		// By returning an empty list Text.Search won't send any queries to
 		// Zoekt.
@@ -80,6 +83,12 @@ func (c *Zoekt) Enabled() bool {
 }
 
 func (c *Zoekt) list(ctx context.Context) (map[string]*zoekt.Repository, error) {
+	log.Print("### UNCACHED")
+	tr, ctx := trace.New(ctx, "Zoekt.list", "list")
+	defer func() {
+		tr.Finish()
+	}()
+
 	resp, err := c.Client.List(ctx, &zoektquery.Const{Value: true})
 	if err != nil {
 		return nil, err

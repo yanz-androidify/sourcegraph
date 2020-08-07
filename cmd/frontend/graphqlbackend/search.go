@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"regexp"
 	regexpsyntax "regexp/syntax"
@@ -712,7 +713,13 @@ func (op *resolveRepoOp) String() string {
 	return b.String()
 }
 
+func elapsed(msg string, start time.Time) {
+	log.Printf("### %s: time.Now() - start", msg)
+}
+
 func resolveRepositories(ctx context.Context, op resolveRepoOp) (repoRevisions, missingRepoRevisions []*search.RepositoryRevisions, overLimit bool, excludedRepos *excludedRepos, err error) {
+	start := time.Now()
+
 	tr, ctx := trace.New(ctx, "resolveRepositories", op.String())
 	defer func() {
 		tr.SetError(err)
@@ -728,6 +735,8 @@ func resolveRepositories(ctx context.Context, op resolveRepoOp) (repoRevisions, 
 	excludePatterns := op.minusRepoFilters
 
 	maxRepoListSize := maxReposToSearch()
+
+	elapsed("1", start)
 
 	// If any repo groups are specified, take the intersection of the repo
 	// groups and the set of repos specified with repo:. (If none are specified
