@@ -38,4 +38,36 @@ END$$;
 
 ALTER TABLE repo DROP COLUMN IF EXISTS sources;
 
+CREATE FUNCTION soft_delete_repo_reference_on_external_service_repos() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        -- if a repo is soft-deleted, soft-delete every row that references that repo
+        IF (OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL) THEN
+          UPDATE
+            external_service_repos
+          SET
+            deleted_at = true
+          WHERE
+            external_service_repos.repo_id ? OLD.id::integer;
+        END IF;
+
+        -- if a repo is soft-undeleted, soft-undelete every row that references that repo
+        IF (OLD.deleted_at IS NOT NULL AND NEW.deleted_at IS NULL) THEN
+          UPDATE
+            external_service_repos
+          SET
+            deleted_at = false
+          WHERE
+            external_service_repos.repo_id ? OLD.id::integer;
+        END IF;
+
+        RETURN OLD;
+    END;
+$$;
+
+CREATE TRIGGER trig_soft_delete_repo_reference_on_external_service_repos AFTER UPDATE ON repo FOR EACH ROW EXECUTE PROCEDURE delete_repo_reference_on_external_service_repos();
+
+
+
 COMMIT;
