@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ type Store interface {
 
 	ListRepos(context.Context, StoreListReposArgs) ([]*Repo, error)
 	UpsertRepos(ctx context.Context, repos ...*Repo) error
+	UpsertSources(ctx context.Context, added, deleted map[api.RepoID]*SourceInfo) error
 	SetClonedRepos(ctx context.Context, repoNames ...string) error
 	CountNotClonedRepos(ctx context.Context) (uint64, error)
 }
@@ -353,7 +355,19 @@ SELECT
   cloned,
   fork,
   private,
-  sources,
+  (
+	SELECT
+	  json_agg(
+	    json_build_object(
+          'CloneURL', clone_url,
+          'ID', external_service_id,
+          'Kind', LOWER(svcs.kind)
+	    )
+	  )
+	FROM external_service_repos AS sr
+	JOIN external_services AS svcs ON sr.external_service_id = svcs.id
+	WHERE repo_id = repo.id
+  ),
   metadata
 FROM repo
 WHERE id > %s
@@ -428,6 +442,80 @@ func listReposQuery(args StoreListReposArgs) paginatedQuery {
 		)
 	}
 }
+
+func (s DBStore) UpsertSources(ctx context.Context, added, deleted map[api.RepoID]*SourceInfo) error {
+	type source struct {
+		ExternalServiceID int64  `json:"external_service_id"`
+		RepoID            int64  `json:"repo_id"`
+		CloneURL          string `json:"clone_url"`
+	}
+
+	marshalSourceList := func(sources map[api.RepoID]*SourceInfo) ([]byte, error) {
+		list := make([]source, 0, len(sources))
+		for rid, s := range sources {
+			list = append(list, source{
+				ExternalServiceID: s.ExternalServiceID(),
+				RepoID:            int64(rid),
+				CloneURL:          s.CloneURL,
+			})
+		}
+		return json.Marshal(list)
+	}
+
+	addedSources, err := marshalSourceList(added)
+	if err != nil {
+		return err
+	}
+	deletedSources, err := marshalSourceList(deleted)
+	if err != nil {
+		return err
+	}
+
+	q := sqlf.Sprintf(upsertSourcesQueryFmtstr, sqlf.Sprintf("%s", string(addedSources)), sqlf.Sprintf("%s", string(deletedSources)))
+
+	_, err = s.db.ExecContext(ctx, q.Query(sqlf.PostgresBindVar), q.Args()...)
+	return err
+}
+
+const upsertSourcesQueryFmtstr = `
+-- source: cmd/repo-updater/repos/store.go:DBStore.UpsertSources
+WITH deleted_sources_list AS (
+  SELECT * FROM ROWS FROM (
+	json_to_recordset(%s)
+	AS (
+		external_service_id bigint,
+		repo_id             integer,
+		clone_url           text
+	  )
+	)
+	WITH ORDINALITY
+),
+added_sources_list AS (
+  SELECT * FROM ROWS FROM (
+    json_to_recordset(%s)
+    AS (
+        external_service_id bigint,
+        repo_id             integer,
+        clone_url           text
+        )
+	)
+    WITH ORDINALITY
+),
+soft_delete_source AS (
+  UPDATE external_service_repos AS e
+  SET
+	deleted_at = clock_timestamp()
+  FROM deleted_sources_list AS d
+  WHERE
+	e.repo_id = d.repo_id
+	AND
+	e.external_service_id = d.external_service_id
+	AND
+	e.clone_url = d.clone_url
+)
+INSERT INTO external_service_repos
+  SELECT * FROM added_sources_list
+`
 
 // SetClonedRepos updates cloned status for all repositories.
 // All repositories whose name is in repoNames will have their cloned column set to true
@@ -768,7 +856,6 @@ INSERT INTO repo (
   archived,
   fork,
   private,
-  sources,
   metadata
 )
 SELECT
@@ -785,7 +872,6 @@ SELECT
   archived,
   fork,
   private,
-  sources,
   metadata
 FROM batch
 ON CONFLICT (external_service_type, external_service_id, external_id) DO NOTHING
@@ -880,7 +966,8 @@ func scanExternalService(svc *ExternalService, s scanner) error {
 }
 
 func scanRepo(r *Repo, s scanner) error {
-	var sources, metadata json.RawMessage
+	var sources json.RawMessage
+	var metadata json.RawMessage
 	err := s.Scan(
 		&r.ID,
 		&r.Name,
@@ -904,8 +991,23 @@ func scanRepo(r *Repo, s scanner) error {
 		return err
 	}
 
-	if err = json.Unmarshal(sources, &r.Sources); err != nil {
+	type sourceInfo struct {
+		ID       int64
+		CloneURL string
+		Kind     string
+	}
+	var srcs []sourceInfo
+
+	if err = json.Unmarshal(sources, &srcs); err != nil {
 		return errors.Wrap(err, "scanRepo: failed to unmarshal sources")
+	}
+
+	r.Sources = make(map[string]*SourceInfo)
+	for _, src := range srcs {
+		r.Sources[extsvc.URN(src.Kind, src.ID)] = &SourceInfo{
+			ID:       strconv.FormatInt(src.ID, 10),
+			CloneURL: src.CloneURL,
+		}
 	}
 
 	typ, ok := extsvc.ParseServiceType(r.ExternalRepo.ServiceType)
