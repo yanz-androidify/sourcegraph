@@ -620,22 +620,15 @@ func groupChangesetsBySource(
 	sourcer repos.Sourcer,
 	cs ...*campaigns.Changeset,
 ) ([]*SourceChangesets, error) {
-	var repoIDs []api.RepoID
-	repoSet := map[api.RepoID]*repos.Repo{}
-
-	for _, c := range cs {
-		id := c.RepoID
-		if _, ok := repoSet[id]; !ok {
-			repoSet[id] = nil
-			repoIDs = append(repoIDs, id)
-		}
-	}
+	var changesets campaigns.Changesets = cs
+	repoIDs := changesets.RepoIDs()
 
 	rs, err := reposStore.ListRepos(ctx, repos.StoreListReposArgs{IDs: repoIDs})
 	if err != nil {
 		return nil, err
 	}
 
+	repoSet := map[api.RepoID]*repos.Repo{}
 	for _, r := range rs {
 		repoSet[r.ID] = r
 	}
