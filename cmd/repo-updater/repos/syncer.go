@@ -219,6 +219,11 @@ func (s *Syncer) syncSubset(ctx context.Context, insertOnly bool, sourcedSubset 
 		return Diff{}, errors.Wrap(err, "syncer.syncsubset.store.upsert-repos")
 	}
 
+	sdiff := s.upsertSources(diff, sourcedSubset)
+	if err = store.UpsertSources(ctx, sdiff.Added, sdiff.Deleted); err != nil {
+		return Diff{}, errors.Wrap(err, "syncer.syncsubset.store.upsert-repos")
+	}
+
 	if s.SubsetSynced != nil {
 		select {
 		case s.SubsetSynced <- diff:
@@ -250,6 +255,55 @@ func (s *Syncer) upserts(diff Diff) []*Repo {
 	}
 
 	return upserts
+}
+
+type sourceDiff struct {
+	Added, Deleted map[api.RepoID]*SourceInfo
+}
+
+func (s *Syncer) upsertSources(diff Diff, sourcedSubset []*Repo) *sourceDiff {
+	sdiff := sourceDiff{
+		Added:   make(map[api.RepoID]*SourceInfo),
+		Deleted: make(map[api.RepoID]*SourceInfo),
+	}
+
+	for _, repo := range diff.Added {
+		for _, si := range repo.Sources {
+			sdiff.Added[repo.ID] = si
+		}
+	}
+
+	for _, repo := range diff.Modified {
+		if repo.Sources == nil {
+			continue
+		}
+
+		for _, src := range sourcedSubset {
+			if src.ID == repo.ID {
+				s.sourceDiff(repo.ID, &sdiff, src.Sources, repo.Sources)
+			}
+		}
+	}
+
+	return &sdiff
+}
+
+func (s *Syncer) sourceDiff(repoID api.RepoID, diff *sourceDiff, oldSources, newSources map[string]*SourceInfo) {
+	for k := range oldSources {
+		if _, ok := newSources[k]; ok {
+			continue
+		}
+
+		diff.Deleted[repoID] = oldSources[k]
+	}
+
+	for k := range newSources {
+		if _, ok := oldSources[k]; ok {
+			continue
+		}
+
+		diff.Added[repoID] = newSources[k]
+	}
 }
 
 // initialUnmodifiedDiffFromStore creates a diff of all repos present in the
