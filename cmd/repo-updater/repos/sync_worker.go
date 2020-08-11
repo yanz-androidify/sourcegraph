@@ -17,11 +17,18 @@ import (
 	"github.com/sourcegraph/sourcegraph/internal/observation"
 	"github.com/sourcegraph/sourcegraph/internal/trace"
 	"github.com/sourcegraph/sourcegraph/internal/workerutil"
+	wstore "github.com/sourcegraph/sourcegraph/internal/workerutil/store"
 )
 
 // NewSyncWorker creates a new external service sync worker.
 func NewSyncWorker(ctx context.Context, db dbutil.DB, handler workerutil.Handler, numHandlers int) *workerutil.Worker {
 	dbHandle := basestore.NewHandleWithDB(db)
+
+	syncJobColumns := append(wstore.DefaultColumnExpressions(), []*sqlf.Query{
+		sqlf.Sprintf("external_service_id"),
+		sqlf.Sprintf("next_sync_at"),
+	}...)
+
 	store := workerutil.NewStore(dbHandle, workerutil.StoreOptions{
 		TableName:         "external_service_sync_jobs",
 		ViewName:          "external_service_sync_jobs_with_next_sync_at",
@@ -63,18 +70,6 @@ func newObservationOperation() *observation.Operation {
 		MetricLabels: []string{"process"},
 		Metrics:      m,
 	})
-}
-
-var syncJobColumns = []*sqlf.Query{
-	sqlf.Sprintf("id"),
-	sqlf.Sprintf("state"),
-	sqlf.Sprintf("failure_message"),
-	sqlf.Sprintf("started_at"),
-	sqlf.Sprintf("finished_at"),
-	sqlf.Sprintf("process_after"),
-	sqlf.Sprintf("num_resets"),
-	sqlf.Sprintf("external_service_id"),
-	sqlf.Sprintf("next_sync_at"),
 }
 
 func scanSyncJob(rows *sql.Rows, err error) (workerutil.Record, bool, error) {
@@ -120,8 +115,8 @@ func (s *SyncJob) RecordID() int {
 type syncHandler struct{}
 
 func (h *syncHandler) Handle(ctx context.Context, tx workerutil.Store, record workerutil.Record) error {
-	//myStore := h.myStore.With(tx) // combine store handles
-	//myRecord := record.(MyType)   // convert type of record
+	// myStore := h.myStore.With(tx) // combine store handles
+	// myRecord := record.(MyType)   // convert type of record
 	// do processing ...
 	return errors.New("TODO")
 }

@@ -186,6 +186,15 @@ var columnNames = []string{
 	"num_resets",
 }
 
+// DefaultColumnExpressions returns a slice of expressions for the default column name we expect.
+func DefaultColumnExpressions() []*sqlf.Query {
+	expressions := make([]*sqlf.Query, len(columnNames))
+	for i := range columnNames {
+		expressions[i] = sqlf.Sprintf(columnNames[i])
+	}
+	return expressions
+}
+
 func (s *store) Transact(ctx context.Context) (*store, error) {
 	txBase, err := s.Store.Transact(ctx)
 	if err != nil {

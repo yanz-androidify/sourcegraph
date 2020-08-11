@@ -52,6 +52,11 @@ func testSyncWorkerPlumbing(db *sql.DB) func(t *testing.T) {
 		}
 		worker := repos.NewSyncWorker(ctx, db, h, 1)
 		go worker.Start()
+
+		// There is a race between the worker being stopped and the worker util
+		// finalising the row which means that when running tests in verbose mode we'll
+		// see "sql: transaction has already been committed or rolled back". These
+		// errors can be ignored.
 		defer worker.Stop()
 
 		var job *repos.SyncJob
@@ -65,6 +70,7 @@ func testSyncWorkerPlumbing(db *sql.DB) func(t *testing.T) {
 		if job.ExternalServiceID != testSvc.ID {
 			t.Fatalf("Expected %d, got %d", testSvc.ID, job.ExternalServiceID)
 		}
+
 	}
 }
 
