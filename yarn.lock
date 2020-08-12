@@ -2475,56 +2475,56 @@
   dependencies:
     any-observable "^0.3.0"
 
-"@sentry/browser@^5.19.0":
-  version "5.19.0"
-  resolved "https://registry.npmjs.org/@sentry/browser/-/browser-5.19.0.tgz#9189b6633fe45e54325e40b39345d9eabd171e4a"
-  integrity sha512-Cz8PnzC5NGfpHIGCmHLgA6iDEBVELwo4Il/iFweXjs4+VL4biw62lI32Q4iLCCpmX0t5UvrWBOnju2v8zuFIjA==
+"@sentry/browser@^5.21.1":
+  version "5.21.1"
+  resolved "https://registry.npmjs.org/@sentry/browser/-/browser-5.21.1.tgz#864b7fe63e1be8a0162642f8541fcdef74f1ce94"
+  integrity sha512-sUxsW545klZxJE4iBAYQ8SuVS85HTOGNmIIIZWFUogB5oW3O0L+nJluXEqf/pHU82LnjDIzqsWCYQ0cRUaeYow==
   dependencies:
-    "@sentry/core" "5.19.0"
-    "@sentry/types" "5.19.0"
-    "@sentry/utils" "5.19.0"
+    "@sentry/core" "5.21.1"
+    "@sentry/types" "5.21.1"
+    "@sentry/utils" "5.21.1"
     tslib "^1.9.3"
 
-"@sentry/core@5.19.0":
-  version "5.19.0"
-  resolved "https://registry.npmjs.org/@sentry/core/-/core-5.19.0.tgz#31b08a0b46ae1ee6863447225b401ac2a777774c"
-  integrity sha512-ry1Zms6jrVQPEwmfywItyUhOgabPrykd8stR1x/u2t1YiISWlR813fE5nzdwgW5mxEitXz/ikTwvrfK3egsDWQ==
+"@sentry/core@5.21.1":
+  version "5.21.1"
+  resolved "https://registry.npmjs.org/@sentry/core/-/core-5.21.1.tgz#fe193b6f13db3f9a56c9bf0adce9a737540c9f60"
+  integrity sha512-Luulwx3GLUiY0gmHOhU+4eSga28Ce8DwoBcRq9GkGuhPu9r80057d5urxrDLp/leIZBXVvpY7tvmSN/rMtvF9w==
   dependencies:
-    "@sentry/hub" "5.19.0"
-    "@sentry/minimal" "5.19.0"
-    "@sentry/types" "5.19.0"
-    "@sentry/utils" "5.19.0"
+    "@sentry/hub" "5.21.1"
+    "@sentry/minimal" "5.21.1"
+    "@sentry/types" "5.21.1"
+    "@sentry/utils" "5.21.1"
     tslib "^1.9.3"
 
-"@sentry/hub@5.19.0":
-  version "5.19.0"
-  resolved "https://registry.npmjs.org/@sentry/hub/-/hub-5.19.0.tgz#f38e7745a4980d9fa6c5baeca5605e7e6fecd5ac"
-  integrity sha512-UFaQLa1XAa02ZcxUmN9GdDpGs3vHK1LpOyYooimX8ttWa4KAkMuP+O5uXH1TJabry6o/cRwYisg2k6PBSy8gxw==
+"@sentry/hub@5.21.1":
+  version "5.21.1"
+  resolved "https://registry.npmjs.org/@sentry/hub/-/hub-5.21.1.tgz#7ff980060bf7129a663b71d2cb63913b0bd816b5"
+  integrity sha512-x5i9Ggi5ZYMhBYL5kyTu2fUJ6owjKH2tgJL3UExoZdRyZkbLAFZb+DtfSnteWgQ6wriGfgPD3r/hAIEdaomk2A==
   dependencies:
-    "@sentry/types" "5.19.0"
-    "@sentry/utils" "5.19.0"
+    "@sentry/types" "5.21.1"
+    "@sentry/utils" "5.21.1"
     tslib "^1.9.3"
 
-"@sentry/minimal@5.19.0":
-  version "5.19.0"
-  resolved "https://registry.npmjs.org/@sentry/minimal/-/minimal-5.19.0.tgz#aa5a700618608ea79d270280fe77f04bbb44ed5a"
-  integrity sha512-3FHgirwOuOMF4VlwHboYObPT9c0S9b9y5FW0DGgNt8sJPezS00VaJti/38ZwOHQJ4fJ6ubt/Y3Kz0eBTVxMCCQ==
+"@sentry/minimal@5.21.1":
+  version "5.21.1"
+  resolved "https://registry.npmjs.org/@sentry/minimal/-/minimal-5.21.1.tgz#3a6482e0963a697d79e0edea563b602abe01fc86"
+  integrity sha512-OBVPASZ+mcXMKajvJon9RjEZ+ny3+VGhOI66acoP1hmYxKvji1OC2bYEuP1r4qtHxWVLAdV7qFj3EQ9ckErZmQ==
   dependencies:
-    "@sentry/hub" "5.19.0"
-    "@sentry/types" "5.19.0"
+    "@sentry/hub" "5.21.1"
+    "@sentry/types" "5.21.1"
     tslib "^1.9.3"
 
-"@sentry/types@5.19.0":
-  version "5.19.0"
-  resolved "https://registry.npmjs.org/@sentry/types/-/types-5.19.0.tgz#30c6a05040b644d90337ef8b50d9d59c0872744d"
-  integrity sha512-NlHLS9mwCEimKUA5vClAwVhXFLsqSF3VJEXU+K61fF6NZx8zfJi/HTrIBtoM4iNSAt9o4XLQatC1liIpBC06tg==
+"@sentry/types@5.21.1":
+  version "5.21.1"
+  resolved "https://registry.npmjs.org/@sentry/types/-/types-5.21.1.tgz#b603afa2d8c331cf520ab8cef986151b18a72e73"
+  integrity sha512-hFN4aDduMpjj6vZSIIp+9kSr8MglcKO/UmbuUXN6hKLewhxt+Zj2wjXN7ulSs5OK5mjXP9QLA5YJvVQsl2//qw==
 
-"@sentry/utils@5.19.0":
-  version "5.19.0"
-  resolved "https://registry.npmjs.org/@sentry/utils/-/utils-5.19.0.tgz#0e01f84aa67a1cf2ec71faab670230918ea7e9aa"
-  integrity sha512-EU/T9aJrI8isexRnyDx5InNw/HjSQ0nKI7YWdiwfFrJusqQ/uisnCGK7vw6gGHDgiAHMXW3TJ38NHpNBin6y7Q==
+"@sentry/utils@5.21.1":
+  version "5.21.1"
+  resolved "https://registry.npmjs.org/@sentry/utils/-/utils-5.21.1.tgz#fb0e96e6134a9d1e9e6eb62c1d9e0c59faac8c25"
+  integrity sha512-p5vPuc7+GfOmW8CXxWd0samS77Q00YrN8q5TC/ztF8nBhEF18GiMeWAdQnlSwt3iWal3q3gSSrbF4c9guIugng==
   dependencies:
-    "@sentry/types" "5.19.0"
+    "@sentry/types" "5.21.1"
     tslib "^1.9.3"
 
 "@sindresorhus/fnv1a@^1.2.0":
