@@ -50,17 +50,25 @@ CREATE FUNCTION soft_delete_repo_reference_on_external_service_repos() RETURNS t
           SET
             deleted_at = clock_timestamp()
           WHERE
-            external_service_repos.repo_id ? OLD.id::integer;
+            external_service_repos.repo_id = OLD.id::integer;
         END IF;
 
-        -- if a repo is soft-undeleted, soft-undelete every row that references that repo
-        IF (OLD.deleted_at IS NOT NULL AND NEW.deleted_at IS NULL) THEN
+        RETURN OLD;
+    END;
+$$;
+
+CREATE FUNCTION soft_delete_external_service_reference_on_external_service_repos() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        -- if an external service is soft-deleted, soft-delete every row that references it
+        IF (OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL) THEN
           UPDATE
             external_service_repos
           SET
-            deleted_at = null
+            deleted_at = clock_timestamp()
           WHERE
-            external_service_repos.repo_id ? OLD.id::integer;
+            external_service_repos.external_service_id = OLD.id::integer;
         END IF;
 
         RETURN OLD;
@@ -68,7 +76,6 @@ CREATE FUNCTION soft_delete_repo_reference_on_external_service_repos() RETURNS t
 $$;
 
 CREATE TRIGGER trig_soft_delete_repo_reference_on_external_service_repos AFTER UPDATE ON repo FOR EACH ROW EXECUTE PROCEDURE soft_delete_repo_reference_on_external_service_repos();
-
-
+CREATE TRIGGER trig_soft_delete_external_service_reference_on_external_service_repos AFTER UPDATE ON external_services FOR EACH ROW EXECUTE PROCEDURE soft_delete_external_service_reference_on_external_service_repos();
 
 COMMIT;

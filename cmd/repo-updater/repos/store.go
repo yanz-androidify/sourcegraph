@@ -28,7 +28,7 @@ type Store interface {
 
 	ListRepos(context.Context, StoreListReposArgs) ([]*Repo, error)
 	UpsertRepos(ctx context.Context, repos ...*Repo) error
-	UpsertSources(ctx context.Context, added, deleted map[api.RepoID][]SourceInfo) error
+	UpsertSources(ctx context.Context, inserts, updates, deletes map[api.RepoID][]SourceInfo) error
 	SetClonedRepos(ctx context.Context, repoNames ...string) error
 	CountNotClonedRepos(ctx context.Context) (uint64, error)
 }
@@ -327,7 +327,7 @@ func (s DBStore) ListRepos(ctx context.Context, args StoreListReposArgs) (repos 
 	return repos, s.paginate(ctx, args.Limit, args.PerPage, listReposQuery(args),
 		func(sc scanner) (last, count int64, err error) {
 			var r Repo
-			if err = scanRepo(&r, sc); err != nil {
+			if err := scanRepo(&r, sc); err != nil {
 				return 0, 0, err
 			}
 			repos = append(repos, &r)
@@ -358,14 +358,19 @@ SELECT
 	SELECT
 	  json_agg(
 	    json_build_object(
-          'CloneURL', clone_url,
-          'ID', external_service_id,
+          'CloneURL', sr.clone_url,
+          'ID', sr.external_service_id,
           'Kind', LOWER(svcs.kind)
 	    )
 	  )
 	FROM external_service_repos AS sr
 	JOIN external_services AS svcs ON sr.external_service_id = svcs.id
-	WHERE repo_id = repo.id
+	WHERE
+	    sr.repo_id = repo.id
+	  AND
+		sr.deleted_at IS NULL
+	  AND
+	    svcs.deleted_at IS NULL
   ),
   metadata
 FROM repo
@@ -442,7 +447,7 @@ func listReposQuery(args StoreListReposArgs) paginatedQuery {
 	}
 }
 
-func (s DBStore) UpsertSources(ctx context.Context, added, deleted map[api.RepoID][]SourceInfo) error {
+func (s DBStore) UpsertSources(ctx context.Context, inserts, updates, deletes map[api.RepoID][]SourceInfo) error {
 	type source struct {
 		ExternalServiceID int64  `json:"external_service_id"`
 		RepoID            int64  `json:"repo_id"`
@@ -463,16 +468,25 @@ func (s DBStore) UpsertSources(ctx context.Context, added, deleted map[api.RepoI
 		return json.Marshal(srcs)
 	}
 
-	addedSources, err := marshalSourceList(added)
-	if err != nil {
-		return err
-	}
-	deletedSources, err := marshalSourceList(deleted)
+	insertedSource, err := marshalSourceList(inserts)
 	if err != nil {
 		return err
 	}
 
-	q := sqlf.Sprintf(upsertSourcesQueryFmtstr, sqlf.Sprintf("%s", string(deletedSources)), sqlf.Sprintf("%s", string(addedSources)))
+	updatedSources, err := marshalSourceList(updates)
+	if err != nil {
+		return err
+	}
+
+	deletedSources, err := marshalSourceList(deletes)
+	if err != nil {
+		return err
+	}
+
+	q := sqlf.Sprintf(upsertSourcesQueryFmtstr,
+		sqlf.Sprintf("%s", string(deletedSources)),
+		sqlf.Sprintf("%s", string(updatedSources)),
+		sqlf.Sprintf("%s", string(insertedSource)))
 
 	_, err = s.db.ExecContext(ctx, q.Query(sqlf.PostgresBindVar), q.Args()...)
 	return err
@@ -491,7 +505,18 @@ WITH deleted_sources_list AS (
   )
   WITH ORDINALITY
 ),
-added_sources_list AS (
+updated_sources_list AS (
+  SELECT * FROM ROWS FROM (
+    json_to_recordset(%s)
+    AS (
+      external_service_id bigint,
+      repo_id             integer,
+      clone_url           text
+    )
+  )
+  WITH ORDINALITY
+),
+inserted_sources_list AS (
   SELECT * FROM ROWS FROM (
     json_to_recordset(%s)
     AS (
@@ -502,7 +527,7 @@ added_sources_list AS (
   )
   WITH ORDINALITY
 ),
-soft_delete_source AS (
+soft_delete_sources AS (
   UPDATE external_service_repos AS e
   SET
 	deleted_at = clock_timestamp()
@@ -513,6 +538,20 @@ soft_delete_source AS (
 	  e.external_service_id = d.external_service_id
 	AND
 	  e.clone_url = d.clone_url
+	AND
+	  e.deleted_at IS NULL
+),
+update_sources AS (
+  UPDATE external_service_repos AS e
+  SET
+	clone_url = d.clone_url
+  FROM updated_sources_list AS d
+  WHERE
+      e.repo_id = d.repo_id
+	AND
+	  e.external_service_id = d.external_service_id
+	AND
+	  e.deleted_at IS NULL
 )
 INSERT INTO external_service_repos (
   external_service_id,
@@ -522,7 +561,7 @@ INSERT INTO external_service_repos (
   external_service_id,
   repo_id,
   clone_url
-FROM added_sources_list
+FROM inserted_sources_list
 `
 
 // SetClonedRepos updates cloned status for all repositories.

@@ -437,13 +437,13 @@ func (o *ObservedStore) UpsertRepos(ctx context.Context, repos ...*Repo) (err er
 }
 
 // UpsertSources calls into the inner Store and registers the observed results.
-func (o *ObservedStore) UpsertSources(ctx context.Context, added, deleted map[api.RepoID][]SourceInfo) (err error) {
+func (o *ObservedStore) UpsertSources(ctx context.Context, added, modified, deleted map[api.RepoID][]SourceInfo) (err error) {
 	tr, ctx := o.trace(ctx, "Store.UpsertSources")
 	tr.LogFields(otlog.Int("count", len(added)+len(deleted)))
 
 	defer func(began time.Time) {
 		secs := time.Since(began).Seconds()
-		count := float64(len(added) + len(deleted))
+		count := float64(len(added) + len(modified) + len(deleted))
 
 		o.metrics.UpsertSources.Observe(secs, count, &err)
 		logging.Log(o.log, "store.upsert-sources", &err, "count", count)
@@ -452,7 +452,7 @@ func (o *ObservedStore) UpsertSources(ctx context.Context, added, deleted map[ap
 		tr.Finish()
 	}(time.Now())
 
-	return o.store.UpsertSources(ctx, added, deleted)
+	return o.store.UpsertSources(ctx, added, modified, deleted)
 }
 
 // SetClonedRepos calls into the inner Store and registers the observed results.

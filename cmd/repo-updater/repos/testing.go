@@ -392,7 +392,7 @@ func (s *FakeStore) SetClonedRepos(ctx context.Context, repoNames ...string) err
 }
 
 // UpsertSources upserts all the given repos in the store.
-func (s *FakeStore) UpsertSources(ctx context.Context, added, deleted map[api.RepoID][]SourceInfo) error {
+func (s *FakeStore) UpsertSources(ctx context.Context, added, modified, deleted map[api.RepoID][]SourceInfo) error {
 	if s.UpsertSourcesError != nil {
 		return s.UpsertSourcesError
 	}
@@ -404,6 +404,16 @@ func (s *FakeStore) UpsertSources(ctx context.Context, added, deleted map[api.Re
 	for rid, list := range added {
 		for _, src := range list {
 			s.srcByRepoID[rid] = append(s.srcByRepoID[rid], src)
+		}
+	}
+
+	for rid, list := range modified {
+		for _, src := range list {
+			for i := range s.srcByRepoID[rid] {
+				if s.srcByRepoID[rid][i].ExternalServiceID() == src.ExternalServiceID() {
+					s.srcByRepoID[rid][i].CloneURL = src.CloneURL
+				}
+			}
 		}
 	}
 

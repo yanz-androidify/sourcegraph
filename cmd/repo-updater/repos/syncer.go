@@ -137,15 +137,16 @@ func (s *Syncer) Sync(ctx context.Context) (err error) {
 		return errors.Wrap(err, "syncer.sync.store.list-repos")
 	}
 
-	diff = NewDiff(sourced, stored)
+	// NewDiff modifies the stored slice so we clone it before passing it
+	diff = NewDiff(sourced, stored.Clone())
 	upserts := s.upserts(diff)
 
 	if err = store.UpsertRepos(ctx, upserts...); err != nil {
 		return errors.Wrap(err, "syncer.sync.store.upsert-repos")
 	}
 
-	sdiff := s.upsertSources(diff, sourced)
-	if err = store.UpsertSources(ctx, sdiff.Added, sdiff.Deleted); err != nil {
+	sdiff := s.sourcesUpserts(&diff, stored)
+	if err = store.UpsertSources(ctx, sdiff.Added, sdiff.Modified, sdiff.Deleted); err != nil {
 		return errors.Wrap(err, "syncer.syncsubset.store.upsert-sources")
 	}
 
@@ -217,15 +218,15 @@ func (s *Syncer) syncSubset(ctx context.Context, insertOnly bool, sourcedSubset 
 		return Diff{}, nil
 	}
 
-	diff = NewDiff(sourcedSubset, storedSubset)
+	diff = NewDiff(sourcedSubset, storedSubset.Clone())
 	upserts := s.upserts(diff)
 
 	if err = store.UpsertRepos(ctx, upserts...); err != nil {
 		return Diff{}, errors.Wrap(err, "syncer.syncsubset.store.upsert-repos")
 	}
 
-	sdiff := s.upsertSources(diff, sourcedSubset)
-	if err = store.UpsertSources(ctx, sdiff.Added, sdiff.Deleted); err != nil {
+	sdiff := s.sourcesUpserts(&diff, storedSubset)
+	if err = store.UpsertSources(ctx, sdiff.Added, sdiff.Modified, sdiff.Deleted); err != nil {
 		return Diff{}, errors.Wrap(err, "syncer.syncsubset.store.upsert-sources")
 	}
 
@@ -263,30 +264,35 @@ func (s *Syncer) upserts(diff Diff) []*Repo {
 }
 
 type sourceDiff struct {
-	Added, Deleted map[api.RepoID][]SourceInfo
+	Added, Modified, Deleted map[api.RepoID][]SourceInfo
 }
 
-// upsertSources creates a diff
-func (s *Syncer) upsertSources(diff Diff, sourcedSubset []*Repo) *sourceDiff {
+// sourcesUpserts creates a diff for sources based on the repositoried diff.
+func (s *Syncer) sourcesUpserts(diff *Diff, stored []*Repo) *sourceDiff {
 	sdiff := sourceDiff{
-		Added:   make(map[api.RepoID][]SourceInfo),
-		Deleted: make(map[api.RepoID][]SourceInfo),
+		Added:    make(map[api.RepoID][]SourceInfo),
+		Modified: make(map[api.RepoID][]SourceInfo),
+		Deleted:  make(map[api.RepoID][]SourceInfo),
 	}
 
+	// when a repository is added, add its sources map to the list
+	// of sourceInfos
 	for _, repo := range diff.Added {
 		for _, si := range repo.Sources {
 			sdiff.Added[repo.ID] = append(sdiff.Added[repo.ID], *si)
 		}
 	}
 
+	// when a repository is modified, check if its source map
+	// has been modified, and if so compute the diff.
 	for _, repo := range diff.Modified {
 		if repo.Sources == nil {
 			continue
 		}
 
-		for _, src := range sourcedSubset {
-			if src.ID == repo.ID {
-				s.sourceDiff(repo.ID, &sdiff, src.Sources, repo.Sources)
+		for _, storedRepo := range stored {
+			if storedRepo.ID == repo.ID {
+				s.sourceDiff(repo.ID, &sdiff, storedRepo.Sources, repo.Sources)
 			}
 		}
 	}
@@ -294,13 +300,20 @@ func (s *Syncer) upsertSources(diff Diff, sourcedSubset []*Repo) *sourceDiff {
 	return &sdiff
 }
 
+// sourceDiff computes the diff between the oldSources and the newSources,
+// and updates the Added and Deleted diff slice.
 func (s *Syncer) sourceDiff(repoID api.RepoID, diff *sourceDiff, oldSources, newSources map[string]*SourceInfo) {
-	for k := range oldSources {
-		if _, ok := newSources[k]; ok {
+	for k, oldSrc := range oldSources {
+		if newSrc, ok := newSources[k]; ok {
+			if oldSrc.CloneURL != newSrc.CloneURL {
+				// the source has been modified
+				diff.Modified[repoID] = append(diff.Modified[repoID], *newSrc)
+			}
+
 			continue
 		}
 
-		diff.Deleted[repoID] = append(diff.Deleted[repoID], *oldSources[k])
+		diff.Deleted[repoID] = append(diff.Deleted[repoID], *oldSrc)
 	}
 
 	for k := range newSources {
@@ -308,7 +321,7 @@ func (s *Syncer) sourceDiff(repoID api.RepoID, diff *sourceDiff, oldSources, new
 			continue
 		}
 
-		diff.Added[repoID] = append(diff.Deleted[repoID], *newSources[k])
+		diff.Added[repoID] = append(diff.Added[repoID], *newSources[k])
 	}
 }
 
