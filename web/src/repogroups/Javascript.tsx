@@ -1,15 +1,16 @@
 import { RepogroupMetadata } from './types'
 import { SearchPatternType } from '../../../shared/src/graphql/schema'
 import * as React from 'react'
-export const reactHooks: RepogroupMetadata = {
-    title: 'React Hooks',
-    name: 'react-hooks',
-    url: '/react-hooks',
+export const javascript: RepogroupMetadata = {
+    title: 'Javascript',
+    name: 'javascript',
+    url: '/javascript',
     description:
-        "Search popular React Hook repositories from the GitHub repository 'rehooks/awesome-react-hooks'. The search examples show usage of the React Hook useState with various data types.",
+        "Search popular Javascript repositories on GitHub. The search examples show usage of a React framework concept—a useState Hook, with various data types.",
     examples: [
         {
-            title: 'Find imports of useState with regex search',
+
+            title: 'Find imports of the useState with regex search',
             exampleQuery: <>import [^;]+useState[^;]+ from 'react'</>,
             rawQuery: "import [^;]+useState[^;]+ from 'react'",
             patternType: SearchPatternType.regexp,
@@ -40,6 +41,6 @@ export const reactHooks: RepogroupMetadata = {
             patternType: SearchPatternType.structural,
         },
     ],
-    homepageDescription: 'Learn how to use React Hooks with search examples.',
+    homepageDescription: 'Learn Javascript with code search examples.',
     homepageIcon: 'https://cdn4.iconfinder.com/data/icons/logos-3/600/React.js_logo-512.png',
 }
