@@ -191,6 +191,11 @@ func testSyncerSync(t *testing.T, s repos.Store) func(*testing.T) {
 
 	clock := repos.NewFakeClock(time.Now(), 0)
 
+	var services []repos.ExternalService
+	for _, svc := range servicesPerKind {
+		services = append(services, *svc)
+	}
+
 	type testCase struct {
 		name    string
 		sourcer repos.Sourcer
@@ -215,7 +220,21 @@ func testSyncerSync(t *testing.T, s repos.Store) func(*testing.T) {
 		{repo: gitoliteRepo, svc: gitoliteService},
 		{repo: bitbucketCloudRepo, svc: bitbucketCloudService},
 	} {
-		svcdup := tc.svc.With(repos.Opt.ExternalServiceID(tc.svc.ID + 1))
+		svcdup := tc.svc.With(func(r *repos.ExternalService) {
+			var idx int = -1
+			for i := range services {
+				if r.ID == services[i].ID {
+					idx = i
+					break
+				}
+			}
+
+			if idx+1 >= len(services) {
+				return
+			}
+
+			*r = services[idx+1]
+		})
 		testCases = append(testCases,
 			testCase{
 				name: "new repo",
