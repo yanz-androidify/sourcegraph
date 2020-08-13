@@ -4,7 +4,6 @@ CREATE TABLE IF NOT EXISTS external_service_repos (
     external_service_id bigint NOT NULL,
     repo_id integer NOT NULL,
     clone_url text NOT NULL,
-    deleted_at timestamp with time zone,
 
     FOREIGN KEY (external_service_id) REFERENCES external_services(id) ON DELETE CASCADE DEFERRABLE,
     FOREIGN KEY (repo_id) REFERENCES repo(id) ON DELETE CASCADE DEFERRABLE
@@ -43,14 +42,12 @@ CREATE FUNCTION soft_delete_repo_reference_on_external_service_repos() RETURNS t
     LANGUAGE plpgsql
     AS $$
     BEGIN
-        -- if a repo is soft-deleted, soft-delete every row that references that repo
+        -- if a repo is soft-deleted, delete every row that references that repo
         IF (OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL) THEN
-          UPDATE
+        DELETE FROM
             external_service_repos
-          SET
-            deleted_at = clock_timestamp()
-          WHERE
-            external_service_repos.repo_id = OLD.id::integer;
+        WHERE
+            repo_id = OLD.id;
         END IF;
 
         RETURN OLD;
@@ -61,14 +58,12 @@ CREATE FUNCTION soft_delete_external_service_reference_on_external_service_repos
     LANGUAGE plpgsql
     AS $$
     BEGIN
-        -- if an external service is soft-deleted, soft-delete every row that references it
+        -- if an external service is soft-deleted, delete every row that references it
         IF (OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL) THEN
-          UPDATE
+          DELETE FROM
             external_service_repos
-          SET
-            deleted_at = clock_timestamp()
           WHERE
-            external_service_repos.external_service_id = OLD.id::integer;
+            external_service_id = OLD.id;
         END IF;
 
         RETURN OLD;

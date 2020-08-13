@@ -368,8 +368,6 @@ SELECT
 	WHERE
 	    sr.repo_id = repo.id
 	  AND
-		sr.deleted_at IS NULL
-	  AND
 	    svcs.deleted_at IS NULL
   ),
   metadata
@@ -527,19 +525,13 @@ inserted_sources_list AS (
   )
   WITH ORDINALITY
 ),
-soft_delete_sources AS (
-  UPDATE external_service_repos AS e
-  SET
-	deleted_at = clock_timestamp()
-  FROM deleted_sources_list AS d
+delete_sources AS (
+  DELETE FROM external_service_repos AS e
+  USING deleted_sources_list AS d
   WHERE
-	  e.repo_id = d.repo_id
-	AND
 	  e.external_service_id = d.external_service_id
 	AND
-	  e.clone_url = d.clone_url
-	AND
-	  e.deleted_at IS NULL
+      e.repo_id = d.repo_id
 ),
 update_sources AS (
   UPDATE external_service_repos AS e
@@ -550,8 +542,6 @@ update_sources AS (
       e.repo_id = d.repo_id
 	AND
 	  e.external_service_id = d.external_service_id
-	AND
-	  e.deleted_at IS NULL
 )
 INSERT INTO external_service_repos (
   external_service_id,

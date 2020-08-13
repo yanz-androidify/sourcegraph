@@ -26,7 +26,7 @@ import (
 func TestSyncer_Sync(t *testing.T) {
 	t.Parallel()
 
-	testSyncerSync(new(repos.FakeStore))(t)
+	testSyncerSync(t, new(repos.FakeStore))(t)
 
 	github := repos.ExternalService{ID: 1, Kind: extsvc.KindGitHub}
 	gitlab := repos.ExternalService{ID: 2, Kind: extsvc.KindGitLab}
@@ -89,11 +89,10 @@ func TestSyncer_Sync(t *testing.T) {
 	}
 }
 
-func testSyncerSync(s repos.Store) func(*testing.T) {
-	githubService := &repos.ExternalService{
-		ID:   1,
-		Kind: extsvc.KindGitHub,
-	}
+func testSyncerSync(t *testing.T, s repos.Store) func(*testing.T) {
+	servicesPerKind := createExternalServices(t, s)
+
+	githubService := servicesPerKind[extsvc.KindGitHub]
 
 	githubRepo := (&repos.Repo{
 		Name:     "github.com/org/foo",
@@ -107,10 +106,7 @@ func testSyncerSync(s repos.Store) func(*testing.T) {
 		repos.Opt.RepoSources(githubService.URN()),
 	)
 
-	gitlabService := &repos.ExternalService{
-		ID:   10,
-		Kind: extsvc.KindGitLab,
-	}
+	gitlabService := servicesPerKind[extsvc.KindGitLab]
 
 	gitlabRepo := (&repos.Repo{
 		Name:     "gitlab.com/org/foo",
@@ -124,10 +120,7 @@ func testSyncerSync(s repos.Store) func(*testing.T) {
 		repos.Opt.RepoSources(gitlabService.URN()),
 	)
 
-	bitbucketServerService := &repos.ExternalService{
-		ID:   20,
-		Kind: extsvc.KindBitbucketServer,
-	}
+	bitbucketServerService := servicesPerKind[extsvc.KindBitbucketServer]
 
 	bitbucketServerRepo := (&repos.Repo{
 		Name:     "bitbucketserver.mycorp.com/org/foo",
@@ -141,10 +134,7 @@ func testSyncerSync(s repos.Store) func(*testing.T) {
 		repos.Opt.RepoSources(bitbucketServerService.URN()),
 	)
 
-	awsCodeCommitService := &repos.ExternalService{
-		ID:   30,
-		Kind: extsvc.KindAWSCodeCommit,
-	}
+	awsCodeCommitService := servicesPerKind[extsvc.KindAWSCodeCommit]
 
 	awsCodeCommitRepo := (&repos.Repo{
 		Name:     "git-codecommit.us-west-1.amazonaws.com/stripe-go",
@@ -158,10 +148,7 @@ func testSyncerSync(s repos.Store) func(*testing.T) {
 		repos.Opt.RepoSources(awsCodeCommitService.URN()),
 	)
 
-	otherService := &repos.ExternalService{
-		ID:   40,
-		Kind: extsvc.KindOther,
-	}
+	otherService := servicesPerKind[extsvc.KindOther]
 
 	otherRepo := (&repos.Repo{
 		Name: "git-host.com/org/foo",
@@ -174,10 +161,7 @@ func testSyncerSync(s repos.Store) func(*testing.T) {
 		repos.Opt.RepoSources(otherService.URN()),
 	)
 
-	gitoliteService := &repos.ExternalService{
-		ID:   50,
-		Kind: extsvc.KindGitolite,
-	}
+	gitoliteService := servicesPerKind[extsvc.KindGitolite]
 
 	gitoliteRepo := (&repos.Repo{
 		Name:     "gitolite.mycorp.com/foo",
@@ -191,10 +175,7 @@ func testSyncerSync(s repos.Store) func(*testing.T) {
 		repos.Opt.RepoSources(gitoliteService.URN()),
 	)
 
-	bitbucketCloudService := &repos.ExternalService{
-		ID:   60,
-		Kind: extsvc.KindBitbucketCloud,
-	}
+	bitbucketCloudService := servicesPerKind[extsvc.KindBitbucketCloud]
 
 	bitbucketCloudRepo := (&repos.Repo{
 		Name:     "bitbucket.org/team/foo",
@@ -543,7 +524,11 @@ func testSyncerSync(s repos.Store) func(*testing.T) {
 				}
 
 				if st != nil && len(tc.stored) > 0 {
-					if err := st.UpsertRepos(ctx, tc.stored.Clone()...); err != nil {
+					cloned := tc.stored.Clone()
+					if err := st.UpsertRepos(ctx, cloned...); err != nil {
+						t.Fatalf("failed to prepare store: %v", err)
+					}
+					if err := st.UpsertSources(ctx, cloned.Sources(), nil, nil); err != nil {
 						t.Fatalf("failed to prepare store: %v", err)
 					}
 				}
@@ -583,10 +568,10 @@ func testSyncerSync(s repos.Store) func(*testing.T) {
 func TestSync_SyncSubset(t *testing.T) {
 	t.Parallel()
 
-	testSyncSubset(new(repos.FakeStore))(t)
+	testSyncSubset(t, new(repos.FakeStore))(t)
 }
 
-func testSyncSubset(s repos.Store) func(*testing.T) {
+func testSyncSubset(t *testing.T, s repos.Store) func(*testing.T) {
 	clock := repos.NewFakeClock(time.Now(), time.Second)
 
 	repo := &repos.Repo{

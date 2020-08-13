@@ -45,20 +45,28 @@ func TestIntegration(t *testing.T) {
 
 	for _, tc := range []struct {
 		name string
-		test func(*testing.T)
+		test func(*testing.T, repos.Store) func(*testing.T)
 	}{
-		{"DBStore/Transact", testDBStoreTransact(dbstore)},
-		{"DBStore/ListExternalServices", testStoreListExternalServices(store)},
-		{"DBStore/ListExternalServices/ByRepo", testStoreListExternalServicesByRepos(store)},
-		{"DBStore/UpsertExternalServices", testStoreUpsertExternalServices(store)},
-		{"DBStore/UpsertRepos", testStoreUpsertRepos(store)},
-		{"DBStore/ListRepos", testStoreListRepos(store)},
-		{"DBStore/ListRepos/Pagination", testStoreListReposPagination(store)},
-		{"DBStore/SetClonedRepos", testStoreSetClonedRepos(store)},
-		{"DBStore/CountNotClonedRepos", testStoreCountNotClonedRepos(store)},
-		{"DBStore/Syncer/Sync", testSyncerSync(store)},
-		{"DBStore/Syncer/SyncSubset", testSyncSubset(store)},
+		{"DBStore/Transact", func(*testing.T, repos.Store) func(*testing.T) { return testDBStoreTransact(dbstore) }},
+		{"DBStore/ListExternalServices", testStoreListExternalServices},
+		{"DBStore/ListExternalServices/ByRepo", testStoreListExternalServicesByRepos},
+		{"DBStore/UpsertExternalServices", testStoreUpsertExternalServices},
+		{"DBStore/UpsertRepos", testStoreUpsertRepos},
+		{"DBStore/ListRepos", testStoreListRepos},
+		{"DBStore/ListRepos/Pagination", testStoreListReposPagination},
+		{"DBStore/SetClonedRepos", testStoreSetClonedRepos},
+		{"DBStore/CountNotClonedRepos", testStoreCountNotClonedRepos},
+		{"DBStore/Syncer/Sync", testSyncerSync},
+		{"DBStore/Syncer/SyncSubset", testSyncSubset},
 	} {
-		t.Run(tc.name, tc.test)
+		t.Run(tc.name, func(t *testing.T) {
+			t.Cleanup(func() {
+				if _, err := db.Exec(`DELETE FROM external_service_repos; DELETE FROM external_services`); err != nil {
+					t.Fatalf("cleaning up external services failed: %v", err)
+				}
+			})
+
+			tc.test(t, store)(t)
+		})
 	}
 }
