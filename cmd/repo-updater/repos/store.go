@@ -363,10 +363,10 @@ SELECT
           'Kind', LOWER(svcs.kind)
 	    )
 	  )
-	FROM external_service_repos AS sr
-	JOIN external_services AS svcs ON sr.external_service_id = svcs.id
+	FROM external_service_repos AS esr
+	JOIN external_services AS svcs ON esr.external_service_id = svcs.id
 	WHERE
-	    sr.repo_id = repo.id
+	    esr.repo_id = repo.id
 	  AND
 	    svcs.deleted_at IS NULL
   ),
