@@ -466,7 +466,7 @@ func (s DBStore) UpsertSources(ctx context.Context, inserts, updates, deletes ma
 		return json.Marshal(srcs)
 	}
 
-	insertedSource, err := marshalSourceList(inserts)
+	insertedSources, err := marshalSourceList(inserts)
 	if err != nil {
 		return err
 	}
@@ -484,7 +484,7 @@ func (s DBStore) UpsertSources(ctx context.Context, inserts, updates, deletes ma
 	q := sqlf.Sprintf(upsertSourcesQueryFmtstr,
 		sqlf.Sprintf("%s", string(deletedSources)),
 		sqlf.Sprintf("%s", string(updatedSources)),
-		sqlf.Sprintf("%s", string(insertedSource)))
+		sqlf.Sprintf("%s", string(insertedSources)))
 
 	_, err = s.db.ExecContext(ctx, q.Query(sqlf.PostgresBindVar), q.Args()...)
 	return err
