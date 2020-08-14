@@ -297,6 +297,10 @@ func (s *Syncer) sourcesUpserts(diff *Diff, stored []*Repo) *sourceDiff {
 		}
 	}
 
+	// when a repository is deleted, a postgres function is
+	// triggered to automatically to delete the source,
+	// we don't need to do anything here.
+	// See: https://github.com/sourcegraph/sourcegraph/blob/26655af7b0f3c4ab45312f0e5e001b49fed392ab/migrations/1528395701_add_table_external_services_repos.up.sql#L57
 	return &sdiff
 }
 
