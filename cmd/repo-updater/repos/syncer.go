@@ -293,6 +293,7 @@ func (s *Syncer) sourcesUpserts(diff *Diff, stored []*Repo) *sourceDiff {
 		for _, storedRepo := range stored {
 			if storedRepo.ID == repo.ID {
 				s.sourceDiff(repo.ID, &sdiff, storedRepo.Sources, repo.Sources)
+				break
 			}
 		}
 	}
