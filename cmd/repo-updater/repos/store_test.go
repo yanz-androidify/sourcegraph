@@ -41,6 +41,7 @@ func TestFakeStore(t *testing.T) {
 		{"ListRepos", testStoreListRepos},
 		{"ListRepos_Pagination", testStoreListReposPagination},
 		{"UpsertRepos", testStoreUpsertRepos},
+		{"UpsertSources", testStoreUpsertSources},
 		{"SetClonedRepos", testStoreSetClonedRepos},
 	} {
 		t.Run(tc.name, tc.test(t, repos.NewObservedStore(
@@ -798,21 +799,14 @@ func testStoreUpsertRepos(t *testing.T, store repos.Store) func(*testing.T) {
 	}
 }
 
-func testStoreUpsertSources(store repos.Store) func(*testing.T) {
+func testStoreUpsertSources(t *testing.T, store repos.Store) func(*testing.T) {
 	clock := repos.NewFakeClock(time.Now(), 0)
 	now := clock.Now()
 
+	servicesPerKind := createExternalServices(t, store)
+
 	return func(t *testing.T) {
 		t.Helper()
-
-		kinds := []string{
-			extsvc.KindGitHub,
-			extsvc.KindGitLab,
-			extsvc.KindBitbucketServer,
-			extsvc.KindAWSCodeCommit,
-			extsvc.KindOther,
-			extsvc.KindGitolite,
-		}
 
 		github := repos.Repo{
 			Name:        "github.com/foo/bar",
@@ -826,8 +820,8 @@ func testStoreUpsertSources(store repos.Store) func(*testing.T) {
 				ServiceID:   "http://github.com",
 			},
 			Sources: map[string]*repos.SourceInfo{
-				"extsvc:1": {
-					ID:       "extsvc:1",
+				servicesPerKind[extsvc.KindGitHub].URN(): {
+					ID:       servicesPerKind[extsvc.KindGitHub].URN(),
 					CloneURL: "git@github.com:foo/bar.git",
 				},
 			},
@@ -846,38 +840,17 @@ func testStoreUpsertSources(store repos.Store) func(*testing.T) {
 				ServiceID:   "http://gitlab.com",
 			},
 			Sources: map[string]*repos.SourceInfo{
-				"extsvc:2": {
-					ID:       "extsvc:2",
+				servicesPerKind[extsvc.KindGitLab].URN(): {
+					ID:       servicesPerKind[extsvc.KindGitLab].URN(),
 					CloneURL: "git@gitlab.com:foo/bar.git",
 				},
 			},
 			Metadata: new(gitlab.Project),
 		}
 
-		githubSvc := repos.ExternalService{
-			Kind:        extsvc.KindGitHub,
-			DisplayName: "Github - Test",
-			Config:      `{"url": "https://github.com"}`,
-			CreatedAt:   now,
-			UpdatedAt:   now,
-		}
-
-		gitlabSvc := repos.ExternalService{
-			Kind:        extsvc.KindGitLab,
-			DisplayName: "GitLab - Test",
-			Config:      `{"url": "https://gitlab.com"}`,
-			CreatedAt:   now,
-			UpdatedAt:   now,
-		}
-
 		repositories := repos.Repos{
 			&github,
 			&gitlab,
-		}
-
-		svcs := repos.ExternalServices{
-			&githubSvc,
-			&gitlabSvc,
 		}
 
 		ctx := context.Background()
@@ -888,12 +861,9 @@ func testStoreUpsertSources(store repos.Store) func(*testing.T) {
 			}
 		})
 
-		t.Run("only inserts", transact(ctx, store, func(t testing.TB, tx repos.Store) {
+		t.Run("delete repo", transact(ctx, store, func(t testing.TB, tx repos.Store) {
 			want := mkRepos(7, repositories...)
 
-			if err := tx.UpsertExternalServices(ctx, svcs...); err != nil {
-				t.Fatalf("UpsertExternalServices error: %s", err)
-			}
 			if err := tx.UpsertRepos(ctx, want...); err != nil {
 				t.Fatalf("UpsertRepos error: %s", err)
 			}
@@ -904,37 +874,123 @@ func testStoreUpsertSources(store repos.Store) func(*testing.T) {
 				t.Fatalf("UpsertSources error: %s", err)
 			}
 
-			have, err := tx.ListRepos(ctx, repos.StoreListReposArgs{
-				Kinds: kinds,
-			})
+			// delete a repository
+			want[0].DeletedAt = now
+			if err := tx.UpsertRepos(ctx, want...); err != nil {
+				t.Fatalf("UpsertRepos error: %s", err)
+			}
+
+			// un delete it
+			want[0].DeletedAt = time.Time{}
+			if err := tx.UpsertRepos(ctx, want...); err != nil {
+				t.Fatalf("UpsertRepos error: %s", err)
+			}
+
+			// it should not contain any source
+			want[0].Sources = nil
+
+			got, err := tx.ListRepos(ctx, repos.StoreListReposArgs{})
 			if err != nil {
 				t.Fatalf("ListRepos error: %s", err)
 			}
 
-			if diff := cmp.Diff(have, []*repos.Repo(want), cmpopts.EquateEmpty()); diff != "" {
+			if diff := cmp.Diff([]*repos.Repo(want), got, cmpopts.EquateEmpty()); diff != "" {
 				t.Fatalf("ListRepos:\n%s", diff)
+			}
+		}))
+
+		t.Run("delete external service", transact(ctx, store, func(t testing.TB, tx repos.Store) {
+			want := mkRepos(7, repositories...)
+
+			if err := tx.UpsertRepos(ctx, want...); err != nil {
+				t.Fatalf("UpsertRepos error: %s", err)
+			}
+
+			sources := want.Sources()
+
+			if err := tx.UpsertSources(ctx, sources, nil, nil); err != nil {
+				t.Fatalf("UpsertSources error: %s", err)
 			}
 
 			// delete an external service
-			svcs[0].DeletedAt = now
-			if err := tx.UpsertExternalServices(ctx, svcs[0]); err != nil {
+			svc := servicesPerKind[extsvc.KindGitHub]
+			svc.DeletedAt = now
+			if err := tx.UpsertExternalServices(ctx, svc); err != nil {
 				t.Fatalf("UpsertExternalServices error: %s", err)
 			}
 
-			have, err = tx.ListRepos(ctx, repos.StoreListReposArgs{
-				Kinds: kinds,
+			// un delete it
+			svc.DeletedAt = time.Time{}
+			if err := tx.UpsertExternalServices(ctx, svc); err != nil {
+				t.Fatalf("UpsertExternalServices error: %s", err)
+			}
+
+			// all github sources should be deleted
+			want.Apply(func(r *repos.Repo) {
+				for urn := range r.Sources {
+					if strings.Contains(urn, "github") {
+						delete(r.Sources, urn)
+					}
+				}
 			})
+
+			got, err := tx.ListRepos(ctx, repos.StoreListReposArgs{})
 			if err != nil {
 				t.Fatalf("ListRepos error: %s", err)
 			}
 
-			want.Apply(func(r *repos.Repo) {
-				for uri := range r.Sources {
-					if uri == "extsvc:github:1" {
-						delete(r.Sources, uri)
-					}
-				}
-			})
+			if diff := cmp.Diff([]*repos.Repo(want), got, cmpopts.EquateEmpty()); diff != "" {
+				t.Fatalf("ListRepos:\n%s", diff)
+			}
+		}))
+
+		t.Run("inserts updates and deletes", transact(ctx, store, func(t testing.TB, tx repos.Store) {
+			want := mkRepos(7, repositories...)
+
+			if err := tx.UpsertRepos(ctx, want...); err != nil {
+				t.Fatalf("UpsertRepos error: %s", err)
+			}
+
+			sources := want.Sources()
+
+			if err := tx.UpsertSources(ctx, sources, nil, nil); err != nil {
+				t.Fatalf("UpsertSources error: %s", err)
+			}
+
+			have, err := tx.ListRepos(ctx, repos.StoreListReposArgs{})
+			if err != nil {
+				t.Fatalf("ListRepos error: %s", err)
+			}
+
+			if diff := cmp.Diff([]*repos.Repo(want), have, cmpopts.EquateEmpty()); diff != "" {
+				t.Fatalf("ListRepos:\n%s", diff)
+			}
+
+			updates := make(map[api.RepoID][]repos.SourceInfo)
+			deletes := make(map[api.RepoID][]repos.SourceInfo)
+
+			updates[want[0].ID] = sources[want[0].ID]
+			updates[want[0].ID][0].CloneURL = "something-else"
+			deletes[want[1].ID] = sources[want[1].ID]
+
+			if err := tx.UpsertSources(ctx, nil, updates, deletes); err != nil {
+				t.Fatalf("UpsertSources error: %s", err)
+			}
+
+			want[0].Sources[servicesPerKind[extsvc.KindGitHub].URN()] = &repos.SourceInfo{
+				CloneURL: "something-else",
+				ID:       servicesPerKind[extsvc.KindGitHub].URN(),
+			}
+			want[1].Sources = nil
+
+			have, err = tx.ListRepos(ctx, repos.StoreListReposArgs{})
+			if err != nil {
+				t.Fatalf("ListRepos error: %s", err)
+			}
+
+			if diff := cmp.Diff([]*repos.Repo(want), have, cmpopts.EquateEmpty()); diff != "" {
+				t.Fatalf("ListRepos:\n%s", diff)
+			}
 		}))
 	}
 }

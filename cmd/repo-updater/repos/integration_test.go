@@ -52,6 +52,7 @@ func TestIntegration(t *testing.T) {
 		{"DBStore/ListExternalServices/ByRepo", testStoreListExternalServicesByRepos},
 		{"DBStore/UpsertExternalServices", testStoreUpsertExternalServices},
 		{"DBStore/UpsertRepos", testStoreUpsertRepos},
+		{"DBStore/UpsertSources", testStoreUpsertSources},
 		{"DBStore/ListRepos", testStoreListRepos},
 		{"DBStore/ListRepos/Pagination", testStoreListReposPagination},
 		{"DBStore/SetClonedRepos", testStoreSetClonedRepos},

@@ -358,8 +358,8 @@ SELECT
 	SELECT
 	  json_agg(
 	    json_build_object(
-          'CloneURL', sr.clone_url,
-          'ID', sr.external_service_id,
+          'CloneURL', esr.clone_url,
+          'ID', esr.external_service_id,
           'Kind', LOWER(svcs.kind)
 	    )
 	  )
@@ -536,12 +536,12 @@ delete_sources AS (
 update_sources AS (
   UPDATE external_service_repos AS e
   SET
-	clone_url = d.clone_url
-  FROM updated_sources_list AS d
+	clone_url = u.clone_url
+  FROM updated_sources_list AS u
   WHERE
-      e.repo_id = d.repo_id
+      e.repo_id = u.repo_id
 	AND
-	  e.external_service_id = d.external_service_id
+	  e.external_service_id = u.external_service_id
 )
 INSERT INTO external_service_repos (
   external_service_id,
