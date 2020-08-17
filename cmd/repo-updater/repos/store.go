@@ -26,6 +26,7 @@ type Store interface {
 	ListExternalServices(context.Context, StoreListExternalServicesArgs) ([]*ExternalService, error)
 	UpsertExternalServices(ctx context.Context, svcs ...*ExternalService) error
 
+	InsertRepos(context.Context, ...*Repo) error
 	ListRepos(context.Context, StoreListReposArgs) ([]*Repo, error)
 	UpsertRepos(ctx context.Context, repos ...*Repo) error
 	UpsertSources(ctx context.Context, inserts, updates, deletes map[api.RepoID][]SourceInfo) error
@@ -91,6 +92,62 @@ type Transactor interface {
 type TxStore interface {
 	Store
 	Done(...*error)
+}
+
+type repoRecord struct {
+	ID                  api.RepoID      `json:"id"`
+	Name                string          `json:"name"`
+	URI                 *string         `json:"uri,omitempty"`
+	Description         string          `json:"description"`
+	Language            string          `json:"language"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           *time.Time      `json:"updated_at,omitempty"`
+	DeletedAt           *time.Time      `json:"deleted_at,omitempty"`
+	ExternalServiceType *string         `json:"external_service_type,omitempty"`
+	ExternalServiceID   *string         `json:"external_service_id,omitempty"`
+	ExternalID          *string         `json:"external_id,omitempty"`
+	Archived            bool            `json:"archived"`
+	Fork                bool            `json:"fork"`
+	Private             bool            `json:"private"`
+	Metadata            json.RawMessage `json:"metadata"`
+	Sources             json.RawMessage `json:"sources,omitempty"`
+}
+
+func newRepoRecord(r *Repo) (*repoRecord, error) {
+	metadata, err := metadataColumn(r.Metadata)
+	if err != nil {
+		return nil, errors.Wrapf(err, "newRecord: metadata marshalling failed")
+	}
+
+	sources, err := sourcesColumn(r.ID, r.Sources)
+	if err != nil {
+		return nil, errors.Wrapf(err, "newRecord: sources marshalling failed")
+	}
+
+	return &repoRecord{
+		ID:                  r.ID,
+		Name:                r.Name,
+		URI:                 nullStringColumn(r.URI),
+		Description:         r.Description,
+		Language:            r.Language,
+		CreatedAt:           r.CreatedAt.UTC(),
+		UpdatedAt:           nullTimeColumn(r.UpdatedAt.UTC()),
+		DeletedAt:           nullTimeColumn(r.DeletedAt.UTC()),
+		ExternalServiceType: nullStringColumn(r.ExternalRepo.ServiceType),
+		ExternalServiceID:   nullStringColumn(r.ExternalRepo.ServiceID),
+		ExternalID:          nullStringColumn(r.ExternalRepo.ID),
+		Archived:            r.Archived,
+		Fork:                r.Fork,
+		Private:             r.Private,
+		Metadata:            metadata,
+		Sources:             sources,
+	}, nil
+}
+
+type sourceRecord struct {
+	ExternalServiceID int64  `json:"external_service_id"`
+	RepoID            int64  `json:"repo_id"`
+	CloneURL          string `json:"clone_url"`
 }
 
 // DBStore implements the Store interface for reading and writing repos directly
@@ -320,6 +377,135 @@ SET
   next_sync_at = excluded.next_sync_at,
   namespace_user_id = excluded.namespace_user_id
 RETURNING *
+`
+
+// InsertRepos inserts the given repos and their associated sources.
+// It sets the ID field of each given repo to the value of its corresponding row.
+func (s DBStore) InsertRepos(ctx context.Context, repos ...*Repo) error {
+	records := make([]*repoRecord, 0, len(repos))
+
+	for _, r := range repos {
+		repoRec, err := newRepoRecord(r)
+		if err != nil {
+			return err
+		}
+
+		records = append(records, repoRec)
+	}
+
+	encodedRepos, err := json.Marshal(records)
+	if err != nil {
+		return err
+	}
+
+	q := sqlf.Sprintf(insertReposQuery, string(encodedRepos))
+
+	rows, err := s.db.QueryContext(ctx, q.Query(sqlf.PostgresBindVar), q.Args()...)
+	if err != nil {
+		return errors.Wrap(err, "insert")
+	}
+	defer rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	var i int
+	for rows.Next() {
+		if err := rows.Scan(&repos[i].ID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+var insertReposQuery = `
+WITH repos_list AS (
+  SELECT * FROM ROWS FROM (
+	json_to_recordset(%s)
+	AS (
+		id                    integer,
+		name                  citext,
+		uri                   citext,
+		description           text,
+		language              text,
+		created_at            timestamptz,
+		updated_at            timestamptz,
+		deleted_at            timestamptz,
+		external_service_type text,
+		external_service_id   text,
+		external_id           text,
+		archived              boolean,
+		fork                  boolean,
+		private               boolean,
+		metadata              jsonb,
+		sources               jsonb
+	  )
+	)
+	WITH ORDINALITY
+),
+inserted_repos AS (
+  INSERT INTO repo (
+	name,
+	uri,
+	description,
+	language,
+	created_at,
+	updated_at,
+	deleted_at,
+	external_service_type,
+	external_service_id,
+	external_id,
+	archived,
+	fork,
+	private,
+	metadata
+  )
+  SELECT
+	name,
+	NULLIF(BTRIM(uri), ''),
+	description,
+	language,
+	created_at,
+	updated_at,
+	deleted_at,
+	external_service_type,
+	external_service_id,
+	external_id,
+	archived,
+	fork,
+	private,
+	metadata
+  FROM repos_list
+  RETURNING id, repos_list.sources
+),
+sources_list AS (
+  SELECT
+	id AS repo_id,
+	specs.external_service_id AS external_service_id,
+	specs.clone_url AS clone_url
+  FROM
+	inserted_repos,
+	jsonb_to_recordset(inserted_repos.sources)
+	  AS (
+		external_service_id bigint,
+		repo_id             integer,
+		clone_url           text
+	  )
+),
+insert_sources AS (
+  INSERT INTO external_service_repos (
+    external_service_id,
+    repo_id,
+    clone_url
+  )
+  SELECT
+    external_service_id,
+    repo_id,
+    clone_url
+  FROM sources_list
+)
+SELECT id FROM inserted_repos;
 `
 
 // ListRepos lists all stored repos that match the given arguments.
@@ -686,9 +872,9 @@ func (s *DBStore) UpsertRepos(ctx context.Context, repos ...*Repo) (err error) {
 		query string
 		repos []*Repo
 	}{
-		{"delete", deleteReposQuery, deletes},
-		{"update", updateReposQuery, updates},
-		{"insert", insertReposQuery, inserts},
+		{"delete", batchDeleteReposQuery, deletes},
+		{"update", batchUpdateReposQuery, updates},
+		{"insert", batchInsertReposQuery, inserts},
 		{"list", listRepoIDsQuery, inserts}, // list must run last to pick up inserted IDs
 	} {
 		if len(op.repos) == 0 {
@@ -743,48 +929,14 @@ func (s *DBStore) UpsertRepos(ctx context.Context, repos ...*Repo) (err error) {
 }
 
 func batchReposQuery(fmtstr string, repos []*Repo) (_ *sqlf.Query, err error) {
-	type record struct {
-		ID                  api.RepoID      `json:"id"`
-		Name                string          `json:"name"`
-		URI                 *string         `json:"uri,omitempty"`
-		Description         string          `json:"description"`
-		Language            string          `json:"language"`
-		CreatedAt           time.Time       `json:"created_at"`
-		UpdatedAt           *time.Time      `json:"updated_at,omitempty"`
-		DeletedAt           *time.Time      `json:"deleted_at,omitempty"`
-		ExternalServiceType *string         `json:"external_service_type,omitempty"`
-		ExternalServiceID   *string         `json:"external_service_id,omitempty"`
-		ExternalID          *string         `json:"external_id,omitempty"`
-		Archived            bool            `json:"archived"`
-		Fork                bool            `json:"fork"`
-		Private             bool            `json:"private"`
-		Metadata            json.RawMessage `json:"metadata"`
-	}
-
-	records := make([]record, 0, len(repos))
+	records := make([]*repoRecord, 0, len(repos))
 	for _, r := range repos {
-		metadata, err := metadataColumn(r.Metadata)
+		rec, err := newRepoRecord(r)
 		if err != nil {
-			return nil, errors.Wrapf(err, "batchReposQuery: metadata marshalling failed")
+			return nil, err
 		}
 
-		records = append(records, record{
-			ID:                  r.ID,
-			Name:                r.Name,
-			URI:                 nullStringColumn(r.URI),
-			Description:         r.Description,
-			Language:            r.Language,
-			CreatedAt:           r.CreatedAt.UTC(),
-			UpdatedAt:           nullTimeColumn(r.UpdatedAt.UTC()),
-			DeletedAt:           nullTimeColumn(r.DeletedAt.UTC()),
-			ExternalServiceType: nullStringColumn(r.ExternalRepo.ServiceType),
-			ExternalServiceID:   nullStringColumn(r.ExternalRepo.ServiceID),
-			ExternalID:          nullStringColumn(r.ExternalRepo.ID),
-			Archived:            r.Archived,
-			Fork:                r.Fork,
-			Private:             r.Private,
-			Metadata:            metadata,
-		})
+		records = append(records, rec)
 	}
 
 	batch, err := json.MarshalIndent(records, "    ", "    ")
@@ -832,7 +984,7 @@ WITH batch AS (
   WITH ORDINALITY
 )`
 
-var updateReposQuery = batchReposQueryFmtstr + `
+var batchUpdateReposQuery = batchReposQueryFmtstr + `
 UPDATE repo
 SET
   name                  = batch.name,
@@ -859,7 +1011,7 @@ AND repo.external_id = batch.external_id
 // that constraint. However, the syncer is unaware of soft-deleted
 // repositories. So we update the name to something unique to prevent
 // violating this constraint between active and soft-deleted names.
-var deleteReposQuery = batchReposQueryFmtstr + `
+var batchDeleteReposQuery = batchReposQueryFmtstr + `
 UPDATE repo
 SET
   name = 'DELETED-' || extract(epoch from transaction_timestamp()) || '-' || batch.name,
@@ -869,7 +1021,7 @@ WHERE batch.deleted_at IS NOT NULL
 AND repo.id = batch.id
 `
 
-var insertReposQuery = batchReposQueryFmtstr + `
+var batchInsertReposQuery = batchReposQueryFmtstr + `
 INSERT INTO repo (
   name,
   uri,
@@ -945,6 +1097,20 @@ func metadataColumn(metadata interface{}) (msg json.RawMessage, err error) {
 	default:
 		msg, err = json.MarshalIndent(m, "        ", "    ")
 	}
+	return
+}
+
+func sourcesColumn(repoID api.RepoID, sources map[string]*SourceInfo) (msg json.RawMessage, err error) {
+	var records []sourceRecord
+	for _, src := range sources {
+		records = append(records, sourceRecord{
+			ExternalServiceID: src.ExternalServiceID(),
+			RepoID:            int64(repoID),
+			CloneURL:          src.CloneURL,
+		})
+	}
+
+	msg, err = json.MarshalIndent(records, "        ", "    ")
 	return
 }
 

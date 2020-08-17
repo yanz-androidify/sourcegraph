@@ -92,6 +92,10 @@ func (s *mockReposStore) ListRepos(ctx context.Context, args repos.StoreListRepo
 	return s.listRepos(ctx, args)
 }
 
+func (s *mockReposStore) InsertRepos(context.Context, ...*repos.Repo) error {
+	return nil
+}
+
 func (s *mockReposStore) UpsertRepos(context.Context, ...*repos.Repo) error {
 	return nil
 }

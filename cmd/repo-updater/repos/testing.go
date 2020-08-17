@@ -71,6 +71,7 @@ type FakeStore struct {
 	UpsertExternalServicesError error // error to be returned in UpsertExternalServices
 	GetRepoByNameError          error // error to be returned in GetRepoByName
 	ListReposError              error // error to be returned in ListRepos
+	InsertReposError            error // error to be returned in InsertRepos
 	UpsertReposError            error // error to be returned in UpsertRepos
 	UpsertSourcesError          error // error to be returned in UpsertSources
 	SetClonedReposError         error // error to be returned in SetClonedRepos
@@ -109,6 +110,7 @@ func (s *FakeStore) Transact(ctx context.Context) (TxStore, error) {
 		ListExternalServicesError:   s.ListExternalServicesError,
 		UpsertExternalServicesError: s.UpsertExternalServicesError,
 		GetRepoByNameError:          s.GetRepoByNameError,
+		InsertReposError:            s.InsertReposError,
 		ListReposError:              s.ListReposError,
 		UpsertReposError:            s.UpsertReposError,
 		UpsertSourcesError:          s.UpsertSourcesError,
@@ -311,6 +313,27 @@ func evalAnd(bs ...bool) bool {
 		}
 	}
 	return true
+}
+
+// InsertRepos inserts all the given repos in the store.
+func (s *FakeStore) InsertRepos(ctx context.Context, inserts ...*Repo) error {
+	if s.InsertReposError != nil {
+		return s.InsertReposError
+	}
+
+	if s.repoByID == nil {
+		s.repoByID = make(map[api.RepoID]*Repo, len(inserts))
+	}
+
+	for _, r := range inserts {
+		s.repoIDSeq++
+		r.ID = s.repoIDSeq
+		// the cloned column shouldn't be modified by UpsertRepos
+		r.Cloned = false
+		s.repoByID[r.ID] = r
+	}
+
+	return s.checkConstraints()
 }
 
 // UpsertRepos upserts all the given repos in the store.

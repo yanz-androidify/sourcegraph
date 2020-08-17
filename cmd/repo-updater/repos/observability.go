@@ -129,6 +129,7 @@ type ObservedStore struct {
 type StoreMetrics struct {
 	Transact               *metrics.OperationMetrics
 	Done                   *metrics.OperationMetrics
+	InsertRepos            *metrics.OperationMetrics
 	UpsertRepos            *metrics.OperationMetrics
 	UpsertSources          *metrics.OperationMetrics
 	ListRepos              *metrics.OperationMetrics
@@ -186,6 +187,20 @@ func NewStoreMetrics() StoreMetrics {
 			Errors: prometheus.NewCounterVec(prometheus.CounterOpts{
 				Name: "src_repoupdater_store_done_errors_total",
 				Help: "Total number of errors when closing a transaction",
+			}, []string{}),
+		},
+		InsertRepos: &metrics.OperationMetrics{
+			Duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+				Name: "src_repoupdater_store_insert_repos_duration_seconds",
+				Help: "Time spent inserting repos",
+			}, []string{}),
+			Count: prometheus.NewCounterVec(prometheus.CounterOpts{
+				Name: "src_repoupdater_store_insert_repos_total",
+				Help: "Total number of inserting repositories",
+			}, []string{}),
+			Errors: prometheus.NewCounterVec(prometheus.CounterOpts{
+				Name: "src_repoupdater_store_insert_repos_errors_total",
+				Help: "Total number of errors when inserting repos",
 			}, []string{}),
 		},
 		UpsertRepos: &metrics.OperationMetrics{
@@ -388,6 +403,25 @@ func (o *ObservedStore) UpsertExternalServices(ctx context.Context, svcs ...*Ext
 	}(time.Now())
 
 	return o.store.UpsertExternalServices(ctx, svcs...)
+}
+
+// InsertRepos calls into the inner Store and registers the observed results.
+func (o *ObservedStore) InsertRepos(ctx context.Context, repos ...*Repo) (err error) {
+	tr, ctx := o.trace(ctx, "Store.InsertRepos")
+	tr.LogFields(otlog.Int("count", len(repos)))
+
+	defer func(began time.Time) {
+		secs := time.Since(began).Seconds()
+		count := float64(len(repos))
+
+		o.metrics.InsertRepos.Observe(secs, count, &err)
+		logging.Log(o.log, "store.insert-repos", &err, "count", len(repos))
+
+		tr.SetError(err)
+		tr.Finish()
+	}(time.Now())
+
+	return o.store.InsertRepos(ctx, repos...)
 }
 
 // ListRepos calls into the inner Store and registers the observed results.
