@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/sourcegraph/sourcegraph/internal/encrypt"
+
 	"github.com/keegancsmith/sqlf"
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
@@ -36,10 +38,16 @@ type Event struct {
 func (*eventLogs) Insert(ctx context.Context, e *Event) error {
 	argument := e.Argument
 	if argument == nil {
-		argument = json.RawMessage([]byte(`{}`))
+		argument = json.RawMessage(`{}`)
 	}
 
-	_, err := dbconn.Global.ExecContext(
+	arg, err := encrypt.EncryptBytesIfPossible(argument)
+	if err != nil {
+		return err
+	}
+	argument = json.RawMessage(arg)
+
+	_, err = dbconn.Global.ExecContext(
 		ctx,
 		"INSERT INTO event_logs(name, url, user_id, anonymous_user_id, source, argument, version, timestamp) VALUES($1, $2, $3, $4, $5, $6, $7, $8)",
 		e.Name,
@@ -70,6 +78,12 @@ func (*eventLogs) getBySQL(ctx context.Context, querySuffix *sqlf.Query) ([]*typ
 		err := rows.Scan(&r.ID, &r.Name, &r.URL, &r.UserID, &r.AnonymousUserID, &r.Source, &r.Argument, &r.Version, &r.Timestamp)
 		if err != nil {
 			return nil, err
+		}
+
+		var secErr error
+		r.Argument, secErr = encrypt.DecryptIfPossible(r.Argument)
+		if secErr != nil {
+			return nil, secErr
 		}
 		events = append(events, &r)
 	}
