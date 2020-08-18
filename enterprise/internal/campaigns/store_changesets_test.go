@@ -44,7 +44,10 @@ func testStoreChangesets(t *testing.T, ctx context.Context, s *Store, reposStore
 	repo := testRepo(1, extsvc.TypeGitHub)
 	deletedRepo := testRepo(2, extsvc.TypeGitHub).With(repos.Opt.RepoDeletedAt(clock.now()))
 
-	if err := reposStore.UpsertRepos(ctx, deletedRepo, repo); err != nil {
+	if err := reposStore.InsertRepos(ctx, repo); err != nil {
+		t.Fatal(err)
+	}
+	if err := reposStore.DeleteRepos(ctx, deletedRepo.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -786,7 +789,7 @@ func testStoreListChangesetSyncData(t *testing.T, ctx context.Context, s *Store,
 
 	var extSvcID int64 = 1
 	repo := testRepo(int(extSvcID), extsvc.TypeGitHub)
-	if err := reposStore.UpsertRepos(ctx, repo); err != nil {
+	if err := reposStore.InsertRepos(ctx, repo); err != nil {
 		t.Fatal(err)
 	}
 

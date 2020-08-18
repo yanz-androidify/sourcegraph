@@ -54,7 +54,7 @@ func TestPermissionLevels(t *testing.T) {
 
 	reposStore := repos.NewDBStore(dbconn.Global, sql.TxOptions{})
 	repo := newGitHubTestRepo("github.com/sourcegraph/sourcegraph", 1)
-	if err := reposStore.UpsertRepos(ctx, repo); err != nil {
+	if err := reposStore.InsertRepos(ctx, repo); err != nil {
 		t.Fatal(err)
 	}
 
@@ -481,7 +481,7 @@ func TestRepositoryPermissions(t *testing.T) {
 	for i := 0; i < cap(repos); i++ {
 		name := fmt.Sprintf("github.com/sourcegraph/repo-%d", i)
 		r := newGitHubTestRepo(name, i)
-		if err := reposStore.UpsertRepos(ctx, r); err != nil {
+		if err := reposStore.InsertRepos(ctx, r); err != nil {
 			t.Fatal(err)
 		}
 		repos = append(repos, r)

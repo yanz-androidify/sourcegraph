@@ -1476,7 +1476,7 @@ func createTestRepos(t *testing.T, ctx context.Context, db *sql.DB, count int) (
 		rs = append(rs, r)
 	}
 
-	err := rstore.UpsertRepos(ctx, rs...)
+	err := rstore.InsertRepos(ctx, rs...)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -34,7 +34,7 @@ func TestChangesetConnectionResolver(t *testing.T) {
 
 	repo := newGitHubTestRepo("github.com/sourcegraph/sourcegraph", 1)
 	inaccessibleRepo := newGitHubTestRepo("github.com/sourcegraph/private", 2)
-	if err := rstore.UpsertRepos(ctx, repo, inaccessibleRepo); err != nil {
+	if err := rstore.InsertRepos(ctx, repo, inaccessibleRepo); err != nil {
 		t.Fatal(err)
 	}
 	ct.AuthzFilterRepos(t, inaccessibleRepo.ID)

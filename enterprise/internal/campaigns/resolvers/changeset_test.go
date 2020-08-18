@@ -36,7 +36,7 @@ func TestChangesetResolver(t *testing.T) {
 	rstore := repos.NewDBStore(dbconn.Global, sql.TxOptions{})
 
 	repo := newGitHubTestRepo("github.com/sourcegraph/sourcegraph", 1)
-	if err := rstore.UpsertRepos(ctx, repo); err != nil {
+	if err := rstore.InsertRepos(ctx, repo); err != nil {
 		t.Fatal(err)
 	}
 

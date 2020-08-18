@@ -16,7 +16,10 @@ func testStoreChangesetSpecs(t *testing.T, ctx context.Context, s *Store, rs rep
 	repo := testRepo(1, extsvc.TypeGitHub)
 	deletedRepo := testRepo(2, extsvc.TypeGitHub).With(repos.Opt.RepoDeletedAt(clock.now()))
 
-	if err := rs.UpsertRepos(ctx, deletedRepo, repo); err != nil {
+	if err := rs.InsertRepos(ctx, repo); err != nil {
+		t.Fatal(err)
+	}
+	if err := rs.DeleteRepos(ctx, deletedRepo.ID); err != nil {
 		t.Fatal(err)
 	}
 

@@ -691,7 +691,7 @@ func testSyncSubset(t *testing.T, s repos.Store) func(*testing.T) {
 				}()
 
 				if len(tc.stored) > 0 {
-					if err := st.UpsertRepos(ctx, tc.stored.Clone()...); err != nil {
+					if err := st.InsertRepos(ctx, tc.stored.Clone()...); err != nil {
 						t.Fatalf("failed to prepare store: %v", err)
 					}
 				}
@@ -1017,7 +1017,7 @@ func TestSync_Run(t *testing.T) {
 	}
 
 	// Initial repos in store
-	syncer.Store.UpsertRepos(ctx, stored...)
+	syncer.Store.InsertRepos(ctx, stored...)
 
 	done := make(chan struct{})
 	go func() {

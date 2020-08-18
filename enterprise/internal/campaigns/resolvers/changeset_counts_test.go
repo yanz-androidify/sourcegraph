@@ -46,7 +46,7 @@ func TestChangesetCountsOverTimeResolver(t *testing.T) {
 	rstore := repos.NewDBStore(dbconn.Global, sql.TxOptions{})
 
 	repo := newGitHubTestRepo("github.com/sourcegraph/sourcegraph", 1)
-	if err := rstore.UpsertRepos(ctx, repo); err != nil {
+	if err := rstore.InsertRepos(ctx, repo); err != nil {
 		t.Fatal(err)
 	}
 
@@ -172,7 +172,7 @@ func TestChangesetCountsOverTimeIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = repoStore.UpsertRepos(ctx, githubRepo)
+	err = repoStore.InsertRepos(ctx, githubRepo)
 	if err != nil {
 		t.Fatal(err)
 	}

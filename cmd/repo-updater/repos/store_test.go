@@ -1049,7 +1049,7 @@ func testStoreUpsertSources(t *testing.T, store repos.Store) func(*testing.T) {
 
 			// delete a repository
 			want[0].DeletedAt = now
-			if err := tx.UpsertRepos(ctx, want...); err != nil {
+			if err := tx.DeleteRepos(ctx, want[0].ID); err != nil {
 				t.Fatalf("UpsertRepos error: %s", err)
 			}
 
@@ -1367,11 +1367,9 @@ func testStoreCountNotClonedRepos(t *testing.T, store repos.Store) func(*testing
 			}
 
 			sort.Strings(cloned)
-			deletedCloned := stored[8:].With(func(r *repos.Repo) {
-				r.DeletedAt = time.Now()
-			})
+			deletedCloned := stored[8:]
 
-			if err := tx.UpsertRepos(ctx, deletedCloned...); err != nil {
+			if err := tx.DeleteRepos(ctx, deletedCloned.IDs()...); err != nil {
 				t.Fatalf("UpsertRepos error: %s", err)
 			}
 
