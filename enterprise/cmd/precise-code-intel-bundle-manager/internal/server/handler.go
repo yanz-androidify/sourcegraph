@@ -377,7 +377,7 @@ func (s *Server) dbQueryErr(w http.ResponseWriter, r *http.Request, handler dbQu
 		span.Finish()
 	}()
 
-	return s.readerCache.WithReader(ctx, filename, func(reader persistence.Reader) error {
+	return s.readerCache.WithReader(ctx, filename, func(reader persistence.Store) error {
 		db, err := database.OpenDatabase(ctx, filename, persistence.NewObserved(reader, s.observationContext))
 		if err != nil {
 			return pkgerrors.Wrap(err, "database.OpenDatabase")

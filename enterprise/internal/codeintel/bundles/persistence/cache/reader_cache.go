@@ -26,11 +26,12 @@ type ReaderCache interface {
 }
 
 // ReaderOpener initializes a new reader for the given key.
-type ReaderOpener func(key string) (persistence.Reader, error)
+type ReaderOpener func(key string) (persistence.Store, error)
 
+// TODO - rename all of these things
 // Handler performs an operation on a reader. The invocation of this function is a critical section that
 // locks the given reader argument so that it is not closed while in use.
-type HandlerFunc func(reader persistence.Reader) error
+type HandlerFunc func(reader persistence.Store) error
 
 type readerCache struct {
 	opener ReaderOpener
@@ -131,7 +132,7 @@ func (c *readerCache) createEntry(key string) (*readerCacheEntry, bool) {
 		// Initialize the reader in the background. This allows multiple concurrent requests
 		// for the same reader to share the same entry while it is initializing, which an take
 		// a non-negligible amount of time for large, outdated bundles.
-		entry.init(func() (persistence.Reader, error) { return c.opener(key) })
+		entry.init(func() (persistence.Store, error) { return c.opener(key) })
 
 		// Block until the entry is unused, then close the underlying reader
 		entry.closeOnceUnused()
@@ -164,12 +165,12 @@ func makeInitChannel(entry *readerCacheEntry) <-chan struct{} {
 
 // readerCacheEntry wraps a reader with its initialization state and its ref count.
 type readerCacheEntry struct {
-	m           *sync.Mutex        // protects all fields
-	reader      persistence.Reader // shared reader instance
-	err         error              // construction error
-	initialized bool               // set when reader/err fields are set
-	disposed    bool               // set when entry is no longer usable
-	refCount    uint32             // number of references to entry
+	m           *sync.Mutex       // protects all fields
+	reader      persistence.Store // shared reader instance
+	err         error             // construction error
+	initialized bool              // set when reader/err fields are set
+	disposed    bool              // set when entry is no longer usable
+	refCount    uint32            // number of references to entry
 
 	// cond wraps the entry's mutex and broadcasts to waiting
 	// goroutines when initialized is first set to true and when
@@ -190,7 +191,7 @@ func newReaderCacheEntry() *readerCacheEntry {
 
 // init calls the given function to construct a reader, then updates the reader, err,
 // and initialized fields of the entry.
-func (e *readerCacheEntry) init(openReaderFunc func() (persistence.Reader, error)) {
+func (e *readerCacheEntry) init(openReaderFunc func() (persistence.Store, error)) {
 	reader, err := openReaderFunc()
 
 	e.m.Lock()
@@ -225,7 +226,7 @@ func (e *readerCacheEntry) closeOnceUnused() {
 	e.m.Unlock()
 
 	if e.reader != nil {
-		e.reader.Close()
+		e.reader.Close(nil)
 	}
 }
 

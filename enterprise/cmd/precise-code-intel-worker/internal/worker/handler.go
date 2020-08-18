@@ -195,7 +195,7 @@ func (h *handler) write(ctx context.Context, dirname string, groupedBundleData *
 	ctx, endOperation := h.metrics.WriteOperation.With(ctx, &err, observation.Args{})
 	defer endOperation(1, observation.Args{})
 
-	writer, err := sqlitewriter.NewWriter(ctx, filepath.Join(dirname, "sqlite.db"))
+	writer, err := sqlitewriter.NewStore(ctx, filepath.Join(dirname, "sqlite.db"), nil) // TODO - make a data cache
 	if err != nil {
 		return err
 	}

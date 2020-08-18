@@ -133,6 +133,6 @@ func touchFile(filename string) {
 	}
 }
 
-func noopHandler(reader persistence.Reader) error {
+func noopHandler(reader persistence.Store) error {
 	return nil
 }

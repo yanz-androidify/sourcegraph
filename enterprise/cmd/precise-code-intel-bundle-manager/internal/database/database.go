@@ -54,8 +54,8 @@ type Database interface {
 
 type databaseImpl struct {
 	filename        string
-	reader          persistence.Reader // database file reader
-	numResultChunks int                // numResultChunks value from meta row
+	reader          persistence.Store // database file reader
+	numResultChunks int               // numResultChunks value from meta row
 }
 
 var _ Database = &databaseImpl{}
@@ -80,7 +80,7 @@ type DocumentPathRangeID struct {
 }
 
 // OpenDatabase opens a handle to the bundle file at the given path.
-func OpenDatabase(ctx context.Context, filename string, reader persistence.Reader) (Database, error) {
+func OpenDatabase(ctx context.Context, filename string, reader persistence.Store) (Database, error) {
 	meta, err := reader.ReadMeta(ctx)
 	if err != nil {
 		return nil, pkgerrors.Wrap(err, "reader.ReadMeta")
@@ -95,7 +95,7 @@ func OpenDatabase(ctx context.Context, filename string, reader persistence.Reade
 
 // Close closes the underlying reader.
 func (db *databaseImpl) Close() error {
-	return db.reader.Close()
+	return db.reader.Close(nil)
 }
 
 // Exists determines if the path exists in the database.
