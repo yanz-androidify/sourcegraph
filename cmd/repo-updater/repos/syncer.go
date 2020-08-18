@@ -275,7 +275,7 @@ func (s *Syncer) sourcesUpserts(diff *Diff, stored []*Repo) *sourceDiff {
 		Deleted:  make(map[api.RepoID][]SourceInfo),
 	}
 
-	// when a repository is added, add its sources map to the list
+	// When a repository is added, add its sources map to the list
 	// of sourceInfos
 	for _, repo := range diff.Added {
 		for _, si := range repo.Sources {
@@ -283,7 +283,7 @@ func (s *Syncer) sourcesUpserts(diff *Diff, stored []*Repo) *sourceDiff {
 		}
 	}
 
-	// when a repository is modified, check if its source map
+	// When a repository is modified, check if its source map
 	// has been modified, and if so compute the diff.
 	for _, repo := range diff.Modified {
 		if repo.Sources == nil {
@@ -298,7 +298,7 @@ func (s *Syncer) sourcesUpserts(diff *Diff, stored []*Repo) *sourceDiff {
 		}
 	}
 
-	// when a repository is deleted, a postgres function is
+	// When a repository is deleted, a Postgres function is
 	// triggered to automatically to delete the source,
 	// we don't need to do anything here.
 	// See: https://github.com/sourcegraph/sourcegraph/blob/26655af7b0f3c4ab45312f0e5e001b49fed392ab/migrations/1528395701_add_table_external_services_repos.up.sql#L57
@@ -306,12 +306,12 @@ func (s *Syncer) sourcesUpserts(diff *Diff, stored []*Repo) *sourceDiff {
 }
 
 // sourceDiff computes the diff between the oldSources and the newSources,
-// and updates the Added and Deleted diff slice.
+// and updates the Added, Modified and Deleted in place of `diff`.
 func (s *Syncer) sourceDiff(repoID api.RepoID, diff *sourceDiff, oldSources, newSources map[string]*SourceInfo) {
 	for k, oldSrc := range oldSources {
 		if newSrc, ok := newSources[k]; ok {
 			if oldSrc.CloneURL != newSrc.CloneURL {
-				// the source has been modified
+				// The source has been modified
 				diff.Modified[repoID] = append(diff.Modified[repoID], *newSrc)
 			}
 

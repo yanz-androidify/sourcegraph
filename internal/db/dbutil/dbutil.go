@@ -321,7 +321,7 @@ func (n JSONInt64Set) Value() (driver.Value, error) {
 
 // NullJSONRawMessage represents a json.RawMessage that may be null. NullJSONRawMessage implements the
 // sql.Scanner interface so it can be used as a scan destination, similar to
-// sql.NullString. When the scanned value is null, Time is set to the zero value.
+// sql.NullString. When the scanned value is null, Raw is left as nil.
 type NullJSONRawMessage struct {
 	Raw json.RawMessage
 }

@@ -70,7 +70,7 @@ CREATE FUNCTION soft_delete_external_service_reference_on_external_service_repos
     END;
 $$;
 
-CREATE TRIGGER trig_soft_delete_repo_reference_on_external_service_repos AFTER UPDATE ON repo FOR EACH ROW EXECUTE PROCEDURE soft_delete_repo_reference_on_external_service_repos();
-CREATE TRIGGER trig_soft_delete_external_service_reference_on_external_service_repos AFTER UPDATE ON external_services FOR EACH ROW EXECUTE PROCEDURE soft_delete_external_service_reference_on_external_service_repos();
+CREATE TRIGGER trig_soft_delete_repo_reference_on_external_service_repos AFTER UPDATE OF deleted_at ON repo FOR EACH ROW EXECUTE PROCEDURE soft_delete_repo_reference_on_external_service_repos();
+CREATE TRIGGER trig_soft_delete_external_service_reference_on_external_service_repos AFTER UPDATE OF deleted_at ON external_services FOR EACH ROW EXECUTE PROCEDURE soft_delete_external_service_reference_on_external_service_repos();
 
 COMMIT;
