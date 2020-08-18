@@ -3,10 +3,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS external_service_repos (
     external_service_id bigint NOT NULL,
     repo_id integer NOT NULL,
-    clone_url text NOT NULL,
-
-    FOREIGN KEY (external_service_id) REFERENCES external_services(id) ON DELETE CASCADE DEFERRABLE,
-    FOREIGN KEY (repo_id) REFERENCES repo(id) ON DELETE CASCADE DEFERRABLE
+    clone_url text NOT NULL
 );
 
 -- Migrate repo.sources column content to the external_service_repos table.
@@ -35,6 +32,12 @@ BEGIN
         END LOOP;
     END LOOP;
 END$$;
+
+ALTER TABLE ONLY external_service_repos
+    ADD CONSTRAINT external_service_repos_external_service_id_fkey FOREIGN KEY (external_service_id) REFERENCES external_services(id) ON DELETE CASCADE DEFERRABLE;
+
+ALTER TABLE ONLY external_service_repos
+    ADD CONSTRAINT external_service_repos_repo_id_fkey FOREIGN KEY (repo_id) REFERENCES repo(id) ON DELETE CASCADE DEFERRABLE;
 
 ALTER TABLE repo DROP COLUMN IF EXISTS sources;
 
