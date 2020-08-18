@@ -32,7 +32,7 @@ func TestCampaignSpecResolver(t *testing.T) {
 
 	reposStore := repos.NewDBStore(dbconn.Global, sql.TxOptions{})
 
-	repo := newGitHubTestRepo("github.com/sourcegraph/sourcegraph", 1)
+	repo := newGitHubTestRepo("github.com/sourcegraph/sourcegraph", newGithubExternalService(t, reposStore))
 	if err := reposStore.InsertRepos(ctx, repo); err != nil {
 		t.Fatal(err)
 	}
