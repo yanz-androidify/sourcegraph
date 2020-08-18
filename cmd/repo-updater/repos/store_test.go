@@ -127,10 +127,7 @@ func testStoreListExternalServicesByRepos(t *testing.T, store repos.Store) func(
 				},
 			}
 
-			if err := tx.UpsertRepos(ctx, repositories...); err != nil {
-				t.Fatalf("failed to setup store: %v", err)
-			}
-			if err := tx.UpsertSources(ctx, repositories.Sources(), nil, nil); err != nil {
+			if err := tx.InsertRepos(ctx, repositories...); err != nil {
 				t.Fatalf("failed to setup store: %v", err)
 			}
 
@@ -1087,6 +1084,8 @@ func isCloned(r *repos.Repo) bool {
 }
 
 func testStoreSetClonedRepos(t *testing.T, store repos.Store) func(*testing.T) {
+	servicesPerKind := createExternalServices(t, store)
+
 	return func(t *testing.T) {
 		t.Helper()
 
@@ -1102,8 +1101,8 @@ func testStoreSetClonedRepos(t *testing.T, store repos.Store) func(*testing.T) {
 					ServiceID:   "http://github.com",
 				},
 				Sources: map[string]*repos.SourceInfo{
-					"extsvc:3": {
-						ID:       "extsvc:3",
+					servicesPerKind[extsvc.KindGitHub].URN(): {
+						ID:       servicesPerKind[extsvc.KindGitHub].URN(),
 						CloneURL: "git@github.com:foo/bar.git",
 					},
 				},
@@ -1138,8 +1137,8 @@ func testStoreSetClonedRepos(t *testing.T, store repos.Store) func(*testing.T) {
 		t.Run("many repo names", transact(ctx, store, func(t testing.TB, tx repos.Store) {
 			stored := mkRepos(9, repositories...)
 
-			if err := tx.UpsertRepos(ctx, stored...); err != nil {
-				t.Fatalf("UpsertRepos error: %s", err)
+			if err := tx.InsertRepos(ctx, stored...); err != nil {
+				t.Fatalf("InsertRepos error: %s", err)
 			}
 
 			sort.Sort(stored)
@@ -1177,8 +1176,8 @@ func testStoreSetClonedRepos(t *testing.T, store repos.Store) func(*testing.T) {
 				}
 			}
 
-			if err := tx.UpsertRepos(ctx, stored...); err != nil {
-				t.Fatalf("UpsertRepos error: %s", err)
+			if err := tx.InsertRepos(ctx, stored...); err != nil {
+				t.Fatalf("InsertRepos error: %s", err)
 			}
 
 			sort.Sort(stored)
@@ -1204,6 +1203,8 @@ func testStoreCountNotClonedRepos(t *testing.T, store repos.Store) func(*testing
 	return func(t *testing.T) {
 		t.Helper()
 
+		servicesPerKind := createExternalServices(t, store)
+
 		var repositories repos.Repos
 		for i := 0; i < 3; i++ {
 			repositories = append(repositories, &repos.Repo{
@@ -1216,8 +1217,8 @@ func testStoreCountNotClonedRepos(t *testing.T, store repos.Store) func(*testing
 					ServiceID:   "http://github.com",
 				},
 				Sources: map[string]*repos.SourceInfo{
-					"extsvc:3": {
-						ID:       "extsvc:3",
+					servicesPerKind[extsvc.KindGitHub].URN(): {
+						ID:       servicesPerKind[extsvc.KindGitHub].URN(),
 						CloneURL: "git@github.com:foo/bar.git",
 					},
 				},
@@ -1240,8 +1241,8 @@ func testStoreCountNotClonedRepos(t *testing.T, store repos.Store) func(*testing
 		t.Run("multiple cloned repos", transact(ctx, store, func(t testing.TB, tx repos.Store) {
 			stored := mkRepos(10, repositories...)
 
-			if err := tx.UpsertRepos(ctx, stored...); err != nil {
-				t.Fatalf("UpsertRepos error: %s", err)
+			if err := tx.InsertRepos(ctx, stored...); err != nil {
+				t.Fatalf("InsertRepos error: %s", err)
 			}
 
 			sort.Sort(stored)
@@ -1265,8 +1266,8 @@ func testStoreCountNotClonedRepos(t *testing.T, store repos.Store) func(*testing
 		t.Run("deleted non cloned repos", transact(ctx, store, func(t testing.TB, tx repos.Store) {
 			stored := mkRepos(10, repositories...)
 
-			if err := tx.UpsertRepos(ctx, stored...); err != nil {
-				t.Fatalf("UpsertRepos error: %s", err)
+			if err := tx.InsertRepos(ctx, stored...); err != nil {
+				t.Fatalf("InsertRepos error: %s", err)
 			}
 
 			sort.Sort(stored)
@@ -1578,12 +1579,8 @@ func testStoreListRepos(t *testing.T, store repos.Store) func(*testing.T) {
 			t.Run(tc.name, transact(ctx, store, func(t testing.TB, tx repos.Store) {
 				stored := tc.stored.Clone()
 
-				if err := tx.UpsertRepos(ctx, stored...); err != nil {
+				if err := tx.InsertRepos(ctx, stored...); err != nil {
 					t.Fatalf("failed to setup store: %v", err)
-				}
-
-				if err := tx.UpsertSources(ctx, stored.Sources(), nil, nil); err != nil {
-					t.Fatalf("failed to insert sources: %v", err)
 				}
 
 				var args repos.StoreListReposArgs
@@ -1604,10 +1601,7 @@ func testStoreListRepos(t *testing.T, store repos.Store) func(*testing.T) {
 
 		t.Run("only include cloned", transact(ctx, store, func(t testing.TB, tx repos.Store) {
 			stored := mkRepos(5, repositories...).Clone()
-			if err := tx.UpsertRepos(ctx, stored...); err != nil {
-				t.Fatalf("failed to setup store: %v", err)
-			}
-			if err := tx.UpsertSources(ctx, stored.Sources(), nil, nil); err != nil {
+			if err := tx.InsertRepos(ctx, stored...); err != nil {
 				t.Fatalf("failed to setup store: %v", err)
 			}
 
@@ -1666,11 +1660,8 @@ func testStoreListReposPagination(t *testing.T, store repos.Store) func(*testing
 		ctx := context.Background()
 		t.Run("", transact(ctx, store, func(t testing.TB, tx repos.Store) {
 			stored := mkRepos(7, &github)
-			if err := tx.UpsertRepos(ctx, stored...); err != nil {
-				t.Fatalf("UpsertRepos error: %s", err)
-			}
-			if err := tx.UpsertSources(ctx, stored.Sources(), nil, nil); err != nil {
-				t.Fatalf("UpsertRepos error: %s", err)
+			if err := tx.InsertRepos(ctx, stored...); err != nil {
+				t.Fatalf("InsertRepos error: %s", err)
 			}
 
 			sort.Sort(stored)
