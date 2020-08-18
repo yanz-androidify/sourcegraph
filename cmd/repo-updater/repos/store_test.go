@@ -41,6 +41,7 @@ func TestFakeStore(t *testing.T) {
 		{"ListRepos", testStoreListRepos},
 		{"ListRepos_Pagination", testStoreListReposPagination},
 		{"InsertRepos", testStoreInsertRepos},
+		{"DeleteRepos", testStoreDeleteRepos},
 		{"UpsertRepos", testStoreUpsertRepos},
 		{"UpsertSources", testStoreUpsertSources},
 		{"SetClonedRepos", testStoreSetClonedRepos},
@@ -531,6 +532,94 @@ func testStoreInsertRepos(t *testing.T, store repos.Store) func(*testing.T) {
 
 			if noID := want.Filter(hasNoID); len(noID) > 0 {
 				t.Fatalf("InsertRepos didn't assign an ID to all repos: %v", noID.Names())
+			}
+
+			have, err := tx.ListRepos(ctx, repos.StoreListReposArgs{})
+			if err != nil {
+				t.Fatalf("ListRepos error: %s", err)
+			}
+
+			if diff := cmp.Diff(have, []*repos.Repo(want), cmpopts.EquateEmpty()); diff != "" {
+				t.Fatalf("ListRepos:\n%s", diff)
+			}
+		}))
+	}
+}
+
+func testStoreDeleteRepos(t *testing.T, store repos.Store) func(*testing.T) {
+	clock := repos.NewFakeClock(time.Now(), 0)
+	now := clock.Now()
+
+	return func(t *testing.T) {
+		t.Helper()
+
+		servicesPerKind := createExternalServices(t, store)
+
+		repo1 := repos.Repo{
+			Name:        "github.com/foo/bar",
+			URI:         "github.com/foo/bar",
+			Description: "The description",
+			Language:    "barlang",
+			CreatedAt:   now,
+			ExternalRepo: api.ExternalRepoSpec{
+				ID:          "AAAAA==",
+				ServiceType: "github",
+				ServiceID:   "http://github.com",
+			},
+			Sources: map[string]*repos.SourceInfo{
+				servicesPerKind[extsvc.KindGitHub].URN(): {
+					ID:       servicesPerKind[extsvc.KindGitHub].URN(),
+					CloneURL: "git@github.com:foo/bar.git",
+				},
+				servicesPerKind[extsvc.KindBitbucketServer].URN(): {
+					ID:       servicesPerKind[extsvc.KindBitbucketServer].URN(),
+					CloneURL: "git@bitbucketserver.mycorp.com:foo/bar.git",
+				},
+			},
+			Metadata: new(github.Repository),
+		}
+
+		repo2 := repos.Repo{
+			Name:        "gitlab.com/foo/bar",
+			URI:         "gitlab.com/foo/bar",
+			Description: "The description",
+			Language:    "barlang",
+			CreatedAt:   now,
+			ExternalRepo: api.ExternalRepoSpec{
+				ID:          "1234",
+				ServiceType: extsvc.TypeGitLab,
+				ServiceID:   "http://gitlab.com",
+			},
+			Sources: map[string]*repos.SourceInfo{
+				servicesPerKind[extsvc.KindGitLab].URN(): {
+					ID:       servicesPerKind[extsvc.KindGitLab].URN(),
+					CloneURL: "git@gitlab.com:foo/bar.git",
+				},
+			},
+			Metadata: new(gitlab.Project),
+		}
+
+		ctx := context.Background()
+
+		t.Run("no repos should not fail", func(t *testing.T) {
+			if err := store.DeleteRepos(ctx); err != nil {
+				t.Fatalf("DeleteRepos error: %s", err)
+			}
+		})
+
+		t.Run("many repos", transact(ctx, store, func(t testing.TB, tx repos.Store) {
+			rs := mkRepos(7, &repo1, &repo2)
+
+			if err := tx.InsertRepos(ctx, rs...); err != nil {
+				t.Fatalf("InsertRepos error: %s", err)
+			}
+
+			sort.Sort(rs)
+
+			toDelete, want := rs[:3], rs[3:]
+
+			if err := tx.DeleteRepos(ctx, toDelete.IDs()...); err != nil {
+				t.Fatalf("DeleteRepos error: %s", err)
 			}
 
 			have, err := tx.ListRepos(ctx, repos.StoreListReposArgs{})

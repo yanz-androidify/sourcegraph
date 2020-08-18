@@ -525,6 +525,10 @@ SELECT id FROM inserted_repos_with_ids;
 // DeleteRepos inserts the given repos and their associated sources.
 // It sets the ID field of each given repo to the value of its corresponding row.
 func (s DBStore) DeleteRepos(ctx context.Context, ids ...api.RepoID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
 	encodedIds, err := json.Marshal(ids)
 	if err != nil {
 		return err
@@ -542,14 +546,14 @@ func (s DBStore) DeleteRepos(ctx context.Context, ids ...api.RepoID) error {
 
 const deleteReposQuery = `
 WITH repo_ids AS (
-  SELECT json_array_elements(%s) AS id
-),
+  SELECT jsonb_array_elements_text(%s) AS id
+)
 UPDATE repo
 SET
   name = 'DELETED-' || extract(epoch from transaction_timestamp()) || '-' || name,
   deleted_at = transaction_timestamp()
 FROM repo_ids
-WHERE deleted_at IS NOT NULL
+WHERE deleted_at IS NULL
 AND repo.id = repo_ids.id::int
 `
 
