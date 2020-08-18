@@ -138,16 +138,18 @@ func (s *Syncer) Sync(ctx context.Context) (err error) {
 	}
 
 	// NewDiff modifies the stored slice so we clone it before passing it
-	diff = NewDiff(sourced, stored.Clone())
+	storedCopy := stored.Clone()
+
+	diff = NewDiff(sourced, stored)
 	upserts := s.upserts(diff)
 
 	if err = store.UpsertRepos(ctx, upserts...); err != nil {
 		return errors.Wrap(err, "syncer.sync.store.upsert-repos")
 	}
 
-	sdiff := s.sourcesUpserts(&diff, stored)
+	sdiff := s.sourcesUpserts(&diff, storedCopy)
 	if err = store.UpsertSources(ctx, sdiff.Added, sdiff.Modified, sdiff.Deleted); err != nil {
-		return errors.Wrap(err, "syncer.syncsubset.store.upsert-sources")
+		return errors.Wrap(err, "syncer.sync.store.upsert-sources")
 	}
 
 	if s.Synced != nil {
@@ -218,14 +220,17 @@ func (s *Syncer) syncSubset(ctx context.Context, insertOnly bool, sourcedSubset 
 		return Diff{}, nil
 	}
 
-	diff = NewDiff(sourcedSubset, storedSubset.Clone())
+	// NewDiff modifies the stored slice so we clone it before passing it
+	storedCopy := storedSubset.Clone()
+
+	diff = NewDiff(sourcedSubset, storedSubset)
 	upserts := s.upserts(diff)
 
 	if err = store.UpsertRepos(ctx, upserts...); err != nil {
 		return Diff{}, errors.Wrap(err, "syncer.syncsubset.store.upsert-repos")
 	}
 
-	sdiff := s.sourcesUpserts(&diff, storedSubset)
+	sdiff := s.sourcesUpserts(&diff, storedCopy)
 	if err = store.UpsertSources(ctx, sdiff.Added, sdiff.Modified, sdiff.Deleted); err != nil {
 		return Diff{}, errors.Wrap(err, "syncer.syncsubset.store.upsert-sources")
 	}
