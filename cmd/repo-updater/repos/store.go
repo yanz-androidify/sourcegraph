@@ -414,6 +414,7 @@ func (s DBStore) InsertRepos(ctx context.Context, repos ...*Repo) error {
 		if err := rows.Scan(&repos[i].ID); err != nil {
 			return err
 		}
+		i++
 	}
 
 	return nil
@@ -424,7 +425,6 @@ WITH repos_list AS (
   SELECT * FROM ROWS FROM (
 	json_to_recordset(%s)
 	AS (
-		id                    integer,
 		name                  citext,
 		uri                   citext,
 		description           text,
@@ -477,17 +477,30 @@ inserted_repos AS (
 	private,
 	metadata
   FROM repos_list
-  RETURNING id, repos_list.sources
+  RETURNING id
+),
+inserted_repos_rows AS (
+  SELECT id, ROW_NUMBER() OVER () AS rn FROM inserted_repos
+),
+repos_list_rows AS (
+  SELECT *, ROW_NUMBER() OVER () AS rn FROM repos_list
+),
+inserted_repos_with_ids AS (
+  SELECT
+	inserted_repos_rows.id,
+	repos_list_rows.*
+  FROM repos_list_rows
+  JOIN inserted_repos_rows USING (rn)
 ),
 sources_list AS (
   SELECT
-	id AS repo_id,
-	specs.external_service_id AS external_service_id,
-	specs.clone_url AS clone_url
+    inserted_repos_with_ids.id AS repo_id,
+	sources.external_service_id AS external_service_id,
+	sources.clone_url AS clone_url
   FROM
-	inserted_repos,
-	jsonb_to_recordset(inserted_repos.sources)
-	  AS (
+    inserted_repos_with_ids,
+	jsonb_to_recordset(inserted_repos_with_ids.sources)
+	  AS sources(
 		external_service_id bigint,
 		repo_id             integer,
 		clone_url           text
@@ -505,7 +518,7 @@ insert_sources AS (
     clone_url
   FROM sources_list
 )
-SELECT id FROM inserted_repos;
+SELECT id FROM inserted_repos_with_ids;
 `
 
 // ListRepos lists all stored repos that match the given arguments.

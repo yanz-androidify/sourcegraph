@@ -469,18 +469,9 @@ func testStoreInsertRepos(t *testing.T, store repos.Store) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
-		kinds := []string{
-			extsvc.KindGitHub,
-			extsvc.KindGitLab,
-			extsvc.KindBitbucketServer,
-			extsvc.KindAWSCodeCommit,
-			extsvc.KindOther,
-			extsvc.KindGitolite,
-		}
-
 		servicesPerKind := createExternalServices(t, store)
 
-		github := repos.Repo{
+		repo1 := repos.Repo{
 			Name:        "github.com/foo/bar",
 			URI:         "github.com/foo/bar",
 			Description: "The description",
@@ -496,11 +487,15 @@ func testStoreInsertRepos(t *testing.T, store repos.Store) func(*testing.T) {
 					ID:       servicesPerKind[extsvc.KindGitHub].URN(),
 					CloneURL: "git@github.com:foo/bar.git",
 				},
+				servicesPerKind[extsvc.KindBitbucketServer].URN(): {
+					ID:       servicesPerKind[extsvc.KindBitbucketServer].URN(),
+					CloneURL: "git@bitbucketserver.mycorp.com:foo/bar.git",
+				},
 			},
 			Metadata: new(github.Repository),
 		}
 
-		gitlab := repos.Repo{
+		repo2 := repos.Repo{
 			Name:        "gitlab.com/foo/bar",
 			URI:         "gitlab.com/foo/bar",
 			Description: "The description",
@@ -520,89 +515,6 @@ func testStoreInsertRepos(t *testing.T, store repos.Store) func(*testing.T) {
 			Metadata: new(gitlab.Project),
 		}
 
-		bitbucketServer := repos.Repo{
-			Name:        "bitbucketserver.mycorp.com/foo/bar",
-			URI:         "bitbucketserver.mycorp.com/foo/bar",
-			Description: "The description",
-			Language:    "barlang",
-			CreatedAt:   now,
-			ExternalRepo: api.ExternalRepoSpec{
-				ID:          "1234",
-				ServiceType: "bitbucketServer",
-				ServiceID:   "http://bitbucketserver.mycorp.com",
-			},
-			Sources: map[string]*repos.SourceInfo{
-				servicesPerKind[extsvc.KindBitbucketServer].URN(): {
-					ID:       servicesPerKind[extsvc.KindBitbucketServer].URN(),
-					CloneURL: "git@bitbucketserver.mycorp.com:foo/bar.git",
-				},
-			},
-			Metadata: new(bitbucketserver.Repo),
-		}
-
-		awsCodeCommit := repos.Repo{
-			Name:        "git-codecommit.us-west-1.amazonaws.com/stripe-go",
-			URI:         "git-codecommit.us-west-1.amazonaws.com/stripe-go",
-			Description: "The description",
-			Language:    "barlang",
-			CreatedAt:   now,
-			ExternalRepo: api.ExternalRepoSpec{
-				ID:          "f001337a-3450-46fd-b7d2-650c0EXAMPLE",
-				ServiceType: extsvc.TypeAWSCodeCommit,
-				ServiceID:   "arn:aws:codecommit:us-west-1:999999999999:",
-			},
-			Sources: map[string]*repos.SourceInfo{
-				servicesPerKind[extsvc.KindAWSCodeCommit].URN(): {
-					ID:       servicesPerKind[extsvc.KindAWSCodeCommit].URN(),
-					CloneURL: "git@git-codecommit.us-west-1.amazonaws.com/v1/repos/stripe-go",
-				},
-			},
-			Metadata: new(awscodecommit.Repository),
-		}
-
-		otherRepo := repos.Repo{
-			Name: "git-host.com/org/foo",
-			URI:  "git-host.com/org/foo",
-			ExternalRepo: api.ExternalRepoSpec{
-				ID:          "git-host.com/org/foo",
-				ServiceID:   "https://git-host.com/",
-				ServiceType: extsvc.TypeOther,
-			},
-			Sources: map[string]*repos.SourceInfo{
-				servicesPerKind[extsvc.KindOther].URN(): {
-					ID:       servicesPerKind[extsvc.KindOther].URN(),
-					CloneURL: "https://git-host.com/org/foo",
-				},
-			},
-		}
-
-		gitoliteRepo := repos.Repo{
-			Name:      "gitolite.mycorp.com/bar",
-			URI:       "gitolite.mycorp.com/bar",
-			CreatedAt: now,
-			ExternalRepo: api.ExternalRepoSpec{
-				ID:          "bar",
-				ServiceType: extsvc.TypeGitolite,
-				ServiceID:   "git@gitolite.mycorp.com",
-			},
-			Sources: map[string]*repos.SourceInfo{
-				servicesPerKind[extsvc.KindGitolite].URN(): {
-					ID:       servicesPerKind[extsvc.KindGitolite].URN(),
-					CloneURL: "git@gitolite.mycorp.com:bar.git",
-				},
-			},
-			Metadata: new(gitolite.Repo),
-		}
-
-		repositories := repos.Repos{
-			&github,
-			&gitlab,
-			&bitbucketServer,
-			&awsCodeCommit,
-			&otherRepo,
-			&gitoliteRepo,
-		}
-
 		ctx := context.Background()
 
 		t.Run("no repos should not fail", func(t *testing.T) {
@@ -612,7 +524,7 @@ func testStoreInsertRepos(t *testing.T, store repos.Store) func(*testing.T) {
 		})
 
 		t.Run("many repos", transact(ctx, store, func(t testing.TB, tx repos.Store) {
-			want := mkRepos(7, repositories...)
+			want := mkRepos(7, &repo1, &repo2)
 
 			if err := tx.InsertRepos(ctx, want...); err != nil {
 				t.Fatalf("InsertRepos error: %s", err)
@@ -621,12 +533,10 @@ func testStoreInsertRepos(t *testing.T, store repos.Store) func(*testing.T) {
 			sort.Sort(want)
 
 			if noID := want.Filter(hasNoID); len(noID) > 0 {
-				t.Fatalf("UpsertRepos didn't assign an ID to all repos: %v", noID.Names())
+				t.Fatalf("InsertRepos didn't assign an ID to all repos: %v", noID.Names())
 			}
 
-			have, err := tx.ListRepos(ctx, repos.StoreListReposArgs{
-				Kinds: kinds,
-			})
+			have, err := tx.ListRepos(ctx, repos.StoreListReposArgs{})
 			if err != nil {
 				t.Fatalf("ListRepos error: %s", err)
 			}
