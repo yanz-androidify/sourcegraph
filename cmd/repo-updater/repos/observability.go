@@ -424,6 +424,25 @@ func (o *ObservedStore) InsertRepos(ctx context.Context, repos ...*Repo) (err er
 	return o.store.InsertRepos(ctx, repos...)
 }
 
+// DeleteRepos calls into the inner Store and registers the observed results.
+func (o *ObservedStore) DeleteRepos(ctx context.Context, ids ...api.RepoID) (err error) {
+	tr, ctx := o.trace(ctx, "Store.DeleteRepos")
+	tr.LogFields(otlog.Int("count", len(ids)))
+
+	defer func(began time.Time) {
+		secs := time.Since(began).Seconds()
+		count := float64(len(ids))
+
+		o.metrics.InsertRepos.Observe(secs, count, &err)
+		logging.Log(o.log, "store.delete-repos", &err, "count", len(ids))
+
+		tr.SetError(err)
+		tr.Finish()
+	}(time.Now())
+
+	return o.store.DeleteRepos(ctx, ids...)
+}
+
 // ListRepos calls into the inner Store and registers the observed results.
 func (o *ObservedStore) ListRepos(ctx context.Context, args StoreListReposArgs) (rs []*Repo, err error) {
 	tr, ctx := o.trace(ctx, "Store.ListRepos")

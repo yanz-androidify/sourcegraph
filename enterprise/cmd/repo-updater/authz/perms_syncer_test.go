@@ -96,6 +96,10 @@ func (s *mockReposStore) InsertRepos(context.Context, ...*repos.Repo) error {
 	return nil
 }
 
+func (s *mockReposStore) DeleteRepos(context.Context, ...api.RepoID) error {
+	return nil
+}
+
 func (s *mockReposStore) UpsertRepos(context.Context, ...*repos.Repo) error {
 	return nil
 }

@@ -72,6 +72,7 @@ type FakeStore struct {
 	GetRepoByNameError          error // error to be returned in GetRepoByName
 	ListReposError              error // error to be returned in ListRepos
 	InsertReposError            error // error to be returned in InsertRepos
+	DeleteReposError            error // error to be returned in DeleteRepos
 	UpsertReposError            error // error to be returned in UpsertRepos
 	UpsertSourcesError          error // error to be returned in UpsertSources
 	SetClonedReposError         error // error to be returned in SetClonedRepos
@@ -111,6 +112,7 @@ func (s *FakeStore) Transact(ctx context.Context) (TxStore, error) {
 		UpsertExternalServicesError: s.UpsertExternalServicesError,
 		GetRepoByNameError:          s.GetRepoByNameError,
 		InsertReposError:            s.InsertReposError,
+		DeleteReposError:            s.DeleteReposError,
 		ListReposError:              s.ListReposError,
 		UpsertReposError:            s.UpsertReposError,
 		UpsertSourcesError:          s.UpsertSourcesError,
@@ -331,6 +333,27 @@ func (s *FakeStore) InsertRepos(ctx context.Context, inserts ...*Repo) error {
 		// the cloned column shouldn't be modified by UpsertRepos
 		r.Cloned = false
 		s.repoByID[r.ID] = r
+	}
+
+	return s.checkConstraints()
+}
+
+// DeleteRepos deletes all the repos associated with the given repo IDs.
+func (s *FakeStore) DeleteRepos(ctx context.Context, ids ...api.RepoID) error {
+	if s.DeleteReposError != nil {
+		return s.DeleteReposError
+	}
+
+	if s.repoByID == nil {
+		return nil
+	}
+
+	for _, id := range ids {
+		r, ok := s.repoByID[id]
+		if !ok {
+			continue
+		}
+		r.DeletedAt = time.Now()
 	}
 
 	return s.checkConstraints()

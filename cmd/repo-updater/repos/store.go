@@ -28,6 +28,7 @@ type Store interface {
 
 	InsertRepos(context.Context, ...*Repo) error
 	ListRepos(context.Context, StoreListReposArgs) ([]*Repo, error)
+	DeleteRepos(ctx context.Context, ids ...api.RepoID) error
 	UpsertRepos(ctx context.Context, repos ...*Repo) error
 	UpsertSources(ctx context.Context, inserts, updates, deletes map[api.RepoID][]SourceInfo) error
 	SetClonedRepos(ctx context.Context, repoNames ...string) error
@@ -519,6 +520,37 @@ insert_sources AS (
   FROM sources_list
 )
 SELECT id FROM inserted_repos_with_ids;
+`
+
+// DeleteRepos inserts the given repos and their associated sources.
+// It sets the ID field of each given repo to the value of its corresponding row.
+func (s DBStore) DeleteRepos(ctx context.Context, ids ...api.RepoID) error {
+	encodedIds, err := json.Marshal(ids)
+	if err != nil {
+		return err
+	}
+
+	q := sqlf.Sprintf(deleteReposQuery, string(encodedIds))
+
+	_, err = s.db.ExecContext(ctx, q.Query(sqlf.PostgresBindVar), q.Args()...)
+	if err != nil {
+		return errors.Wrap(err, "delete")
+	}
+
+	return nil
+}
+
+const deleteReposQuery = `
+WITH repo_ids AS (
+  SELECT json_array_elements(%s) AS id
+),
+UPDATE repo
+SET
+  name = 'DELETED-' || extract(epoch from transaction_timestamp()) || '-' || name,
+  deleted_at = transaction_timestamp()
+FROM repo_ids
+WHERE deleted_at IS NOT NULL
+AND repo.id = repo_ids.id::int
 `
 
 // ListRepos lists all stored repos that match the given arguments.
