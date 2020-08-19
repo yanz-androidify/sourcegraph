@@ -42,11 +42,12 @@ func testStoreChangesets(t *testing.T, ctx context.Context, s *Store, reposStore
 	}
 
 	repo := testRepo(t, reposStore, extsvc.TypeGitHub)
-	deletedRepo := testRepo(t, reposStore, extsvc.TypeGitHub).With(repos.Opt.RepoDeletedAt(clock.now()))
+	otherRepo := testRepo(t, reposStore, extsvc.TypeGitHub)
 
-	if err := reposStore.InsertRepos(ctx, repo); err != nil {
+	if err := reposStore.InsertRepos(ctx, repo, otherRepo); err != nil {
 		t.Fatal(err)
 	}
+	deletedRepo := otherRepo.With(repos.Opt.RepoDeletedAt(clock.now()))
 	if err := reposStore.DeleteRepos(ctx, deletedRepo.ID); err != nil {
 		t.Fatal(err)
 	}
