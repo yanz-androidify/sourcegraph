@@ -522,8 +522,7 @@ insert_sources AS (
 SELECT id FROM inserted_repos_with_ids;
 `
 
-// DeleteRepos inserts the given repos and their associated sources.
-// It sets the ID field of each given repo to the value of its corresponding row.
+// DeleteRepos deletes repos associated with the given ids and their associated sources.
 func (s DBStore) DeleteRepos(ctx context.Context, ids ...api.RepoID) error {
 	if len(ids) == 0 {
 		return nil
