@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/keegancsmith/sqlf"
 
 	"github.com/sourcegraph/sourcegraph/cmd/repo-updater/repos"
 	edb "github.com/sourcegraph/sourcegraph/enterprise/internal/db"
@@ -74,13 +73,36 @@ func TestIntegration_GitHubPermissions(t *testing.T) {
 	testDB := dbtest.NewDB(t, *dsn)
 	ctx := context.Background()
 
-	// Set up repository, user, and user external account
-	q := sqlf.Sprintf(`
-INSERT INTO repo (id, name, description, language, fork, private,
-					uri, external_service_type, external_service_id, sources)
-	VALUES (1, 'github.com/sourcegraph-vcr-repos/private-org-repo-1', '', '', FALSE, TRUE,
-			'github.com/sourcegraph-vcr-repos/private-org-repo-1', 'github', 'https://github.com/', '{"extsvc:github:1": {}}'::jsonb)`)
-	_, err = testDB.ExecContext(ctx, q.Query(sqlf.PostgresBindVar), q.Args()...)
+	clock := func() time.Time {
+		return time.Now().UTC().Truncate(time.Microsecond)
+	}
+
+	reposStore := repos.NewDBStore(testDB, sql.TxOptions{})
+
+	svc := repos.ExternalService{
+		Kind:      extsvc.KindGitHub,
+		CreatedAt: clock(),
+		Config:    `{"url": "https://github.com"}`,
+	}
+	err = reposStore.UpsertExternalServices(ctx, &svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repo := repos.Repo{
+		Name:    "github.com/sourcegraph-vcr-repos/private-org-repo-1",
+		Private: true,
+		URI:     "github.com/sourcegraph-vcr-repos/private-org-repo-1",
+		ExternalRepo: api.ExternalRepoSpec{
+			ServiceType: "github",
+		},
+		Sources: map[string]*repos.SourceInfo{
+			svc.URN(): {
+				ID: svc.URN(),
+			},
+		},
+	}
+	err = reposStore.InsertRepos(ctx, &repo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,14 +123,10 @@ INSERT INTO repo (id, name, description, language, fork, private,
 		t.Fatal(err)
 	}
 
-	clock := func() time.Time {
-		return time.Now().UTC().Truncate(time.Microsecond)
-	}
-	reposStore := repos.NewDBStore(testDB, sql.TxOptions{})
 	permsStore := edb.NewPermsStore(testDB, clock)
 	syncer := NewPermsSyncer(reposStore, permsStore, clock, nil)
 
-	err = syncer.syncRepoPerms(ctx, api.RepoID(1), true)
+	err = syncer.syncRepoPerms(ctx, repo.ID, true)
 	if err != nil {
 		t.Fatal(err)
 	}
