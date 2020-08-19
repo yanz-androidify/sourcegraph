@@ -65,11 +65,6 @@ func TestIntegration_GitHubPermissions(t *testing.T) {
 	token := os.Getenv("GITHUB_TOKEN")
 	cli := extsvcGitHub.NewClient(uri, token, doer)
 
-	provider := authzGitHub.NewProvider("extsvc:github:1", uri, token, cli)
-
-	authz.SetProviders(false, []authz.Provider{provider})
-	defer authz.SetProviders(true, nil)
-
 	testDB := dbtest.NewDB(t, *dsn)
 	ctx := context.Background()
 
@@ -82,19 +77,25 @@ func TestIntegration_GitHubPermissions(t *testing.T) {
 	svc := repos.ExternalService{
 		Kind:      extsvc.KindGitHub,
 		CreatedAt: clock(),
-		Config:    `{"url": "https://github.com"}`,
+		Config:    `{"url": "https://github.com", "authorization": {}}`,
 	}
 	err = reposStore.UpsertExternalServices(ctx, &svc)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	provider := authzGitHub.NewProvider(svc.URN(), uri, token, cli)
+
+	authz.SetProviders(false, []authz.Provider{provider})
+	defer authz.SetProviders(true, nil)
+
 	repo := repos.Repo{
 		Name:    "github.com/sourcegraph-vcr-repos/private-org-repo-1",
 		Private: true,
 		URI:     "github.com/sourcegraph-vcr-repos/private-org-repo-1",
 		ExternalRepo: api.ExternalRepoSpec{
-			ServiceType: "github",
+			ServiceType: extsvc.TypeGitHub,
+			ServiceID:   "https://github.com/",
 		},
 		Sources: map[string]*repos.SourceInfo{
 			svc.URN(): {
@@ -126,7 +127,7 @@ func TestIntegration_GitHubPermissions(t *testing.T) {
 	permsStore := edb.NewPermsStore(testDB, clock)
 	syncer := NewPermsSyncer(reposStore, permsStore, clock, nil)
 
-	err = syncer.syncRepoPerms(ctx, repo.ID, true)
+	err = syncer.syncRepoPerms(ctx, repo.ID, false)
 	if err != nil {
 		t.Fatal(err)
 	}
