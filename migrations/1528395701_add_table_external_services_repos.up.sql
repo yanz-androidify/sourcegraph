@@ -41,7 +41,7 @@ ALTER TABLE ONLY external_service_repos
 
 ALTER TABLE repo DROP COLUMN IF EXISTS sources;
 
-CREATE FUNCTION soft_delete_repo_reference_on_external_service_repos() RETURNS trigger
+CREATE FUNCTION delete_repo_ref_on_external_service_repos() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
     BEGIN
@@ -57,7 +57,7 @@ CREATE FUNCTION soft_delete_repo_reference_on_external_service_repos() RETURNS t
     END;
 $$;
 
-CREATE FUNCTION soft_delete_external_service_reference_on_external_service_repos() RETURNS trigger
+CREATE FUNCTION delete_external_service_ref_on_external_service_repos() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
     BEGIN
@@ -73,7 +73,7 @@ CREATE FUNCTION soft_delete_external_service_reference_on_external_service_repos
     END;
 $$;
 
-CREATE TRIGGER trig_soft_delete_repo_reference_on_external_service_repos AFTER UPDATE OF deleted_at ON repo FOR EACH ROW EXECUTE PROCEDURE soft_delete_repo_reference_on_external_service_repos();
-CREATE TRIGGER trig_soft_delete_external_service_reference_on_external_service_repos AFTER UPDATE OF deleted_at ON external_services FOR EACH ROW EXECUTE PROCEDURE soft_delete_external_service_reference_on_external_service_repos();
+CREATE TRIGGER trig_delete_repo_ref_on_external_service_repos AFTER UPDATE OF deleted_at ON repo FOR EACH ROW EXECUTE PROCEDURE delete_repo_ref_on_external_service_repos();
+CREATE TRIGGER trig_delete_external_service_ref_on_external_service_repos AFTER UPDATE OF deleted_at ON external_services FOR EACH ROW EXECUTE PROCEDURE delete_external_service_ref_on_external_service_repos();
 
 COMMIT;
