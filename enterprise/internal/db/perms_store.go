@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/RoaringBitmap/roaring"
@@ -1268,6 +1269,7 @@ func (s *PermsStore) load(ctx context.Context, q *sqlf.Query) (*permsLoadValues,
 		// One row is expected, return ErrPermsNotFound if no other errors occurred.
 		err = rows.Err()
 		if err == nil {
+			fmt.Fprintf(os.Stderr, "ICIII\n")
 			err = authz.ErrPermsNotFound
 		}
 		return nil, err
