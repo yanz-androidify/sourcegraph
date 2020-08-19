@@ -130,6 +130,7 @@ type StoreMetrics struct {
 	Transact               *metrics.OperationMetrics
 	Done                   *metrics.OperationMetrics
 	InsertRepos            *metrics.OperationMetrics
+	DeleteRepos            *metrics.OperationMetrics
 	UpsertRepos            *metrics.OperationMetrics
 	UpsertSources          *metrics.OperationMetrics
 	ListRepos              *metrics.OperationMetrics
@@ -146,7 +147,10 @@ func (sm StoreMetrics) MustRegister(r prometheus.Registerer) {
 		sm.Transact,
 		sm.Done,
 		sm.ListRepos,
+		sm.InsertRepos,
+		sm.DeleteRepos,
 		sm.UpsertRepos,
+		sm.UpsertSources,
 		sm.ListExternalServices,
 		sm.UpsertExternalServices,
 		sm.SetClonedRepos,
@@ -201,6 +205,20 @@ func NewStoreMetrics() StoreMetrics {
 			Errors: prometheus.NewCounterVec(prometheus.CounterOpts{
 				Name: "src_repoupdater_store_insert_repos_errors_total",
 				Help: "Total number of errors when inserting repos",
+			}, []string{}),
+		},
+		DeleteRepos: &metrics.OperationMetrics{
+			Duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+				Name: "src_repoupdater_store_delete_repos_duration_seconds",
+				Help: "Time spent deleting repos",
+			}, []string{}),
+			Count: prometheus.NewCounterVec(prometheus.CounterOpts{
+				Name: "src_repoupdater_store_delete_repos_total",
+				Help: "Total number of deleting repositories",
+			}, []string{}),
+			Errors: prometheus.NewCounterVec(prometheus.CounterOpts{
+				Name: "src_repoupdater_store_delete_repos_errors_total",
+				Help: "Total number of errors when deleting repos",
 			}, []string{}),
 		},
 		UpsertRepos: &metrics.OperationMetrics{
